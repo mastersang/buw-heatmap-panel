@@ -1,0 +1,25 @@
+{
+    "type": "panel",
+    "name": "Heatmap",
+    "id": "buw-heatmap-panel",
+    "info": {
+        "description": "Heatmap for Grafana",
+        "author": {
+            "name": "Sang Minh Nguyen",
+            "email": "sang.nguyen.minh@uni-weimar.de"
+        },
+        "keywords": [
+            "heatmap"
+        ],
+        "logos": {
+            "small": "src/img/logo_small.png",
+            "large": "src/img/logo_large.png"
+        },
+        "version": "0.0.1",
+        "updated": "2019-05-06"
+    },
+    "dependencies": {
+        "grafanaVersion": "6.x.x",
+        "plugins": []
+    }
+}

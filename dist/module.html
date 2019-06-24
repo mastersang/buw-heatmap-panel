@@ -1,0 +1,15 @@
+<div style="width:100%; height:100%;overflow-x: scroll;overflow-y: hidden">
+    <button ng-click="toggleFocus()">Focus area</button>
+
+    <div style="margin-top: 30px;position:relative">
+        <canvas id="overviewCanvas" style="position:absolute" width="{{ctrl.overviewWidth}}"
+            height="{{ctrl.overviewHeight}}"></canvas>
+        <canvas id="focusAreaCanvas" width="{{ctrl.overviewWidth}}" height="{{ctrl.overviewHeight}}"
+            style="position:absolute" ng-mousemove="moveFocusArea($event)" ng-click="fixFocusArea($event)"></canvas>
+    </div>
+
+    <div style="position: relative;margin-top: {{ctrl.focusGraphMarginTop}}px;width:100%; height:100%;overflow: scroll">
+        <canvas id="focusGraphCanvas" width="10000" height="5000" style="position: absolute"
+            ng-click="selectNode($event)"></canvas>
+    </div>
+</div>
