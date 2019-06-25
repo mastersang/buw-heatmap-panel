@@ -298,10 +298,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.elem = elem;
         var parent = this;
 
-        scope.toggleFocus = function () {
-            parent.toggleFocus.bind(parent)();
-        }
-
         scope.moveFocusArea = function (evt) {
             parent.moveFocusArea.bind(parent, evt)();
         }
@@ -317,39 +313,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.initialiseCanvases();
     }
 
-    toggleFocus() {
-        this.scope.ctrl.focusMode = !this.scope.ctrl.focusMode;
-
-        if (!this.scope.ctrl.focusMode) {
-            this.clearFocus();
-            this.focusAreaIsFixed = false;
-        }
-    }
-
-    clearFocus() {
-        this.hasFocus = false;
-        this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
-        this.focusGraphContext.clearRect(0, 0, this.focusGraphCanvas.width, this.focusGraphCanvas.height);
-    }
-
     moveFocusArea(evt) {
-        if (this.scope.ctrl.focusMode) {
-            if (!this.focusAreaIsFixed) {
-                this.drawFocus(evt);
-                evt.preventDefault();
-            }
+        if (!this.focusAreaIsFixed) {
+            this.drawFocus(evt);
+            evt.preventDefault();
         }
     }
 
     fixFocusArea(evt) {
-        if (this.scope.ctrl.focusMode) {
-            if (this.focusAreaIsFixed) {
-                this.drawFocus(evt);
-            }
-
-            this.focusAreaIsFixed = !this.focusAreaIsFixed;
-            evt.preventDefault();
+        if (this.focusAreaIsFixed) {
+            this.drawFocus(evt);
         }
+
+        this.focusAreaIsFixed = !this.focusAreaIsFixed;
+        evt.preventDefault();
     }
 
     drawFocus(evt) {
@@ -357,6 +334,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.clearFocus();
         this.drawFocusArea();
         this.drawFocusGraph();
+    }
+
+    clearFocus() {
+        this.hasFocus = false;
+        this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
+        this.focusGraphContext.clearRect(0, 0, this.focusGraphCanvas.width, this.focusGraphCanvas.height);
     }
 
     getMousePos(evt, canvas) {

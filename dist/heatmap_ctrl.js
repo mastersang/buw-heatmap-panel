@@ -370,10 +370,6 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             this.elem = elem;
             var parent = this;
 
-            scope.toggleFocus = function () {
-              parent.toggleFocus.bind(parent)();
-            };
-
             scope.moveFocusArea = function (evt) {
               parent.moveFocusArea.bind(parent, evt)();
             };
@@ -389,43 +385,22 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             this.initialiseCanvases();
           }
         }, {
-          key: "toggleFocus",
-          value: function toggleFocus() {
-            this.scope.ctrl.focusMode = !this.scope.ctrl.focusMode;
-
-            if (!this.scope.ctrl.focusMode) {
-              this.clearFocus();
-              this.focusAreaIsFixed = false;
-            }
-          }
-        }, {
-          key: "clearFocus",
-          value: function clearFocus() {
-            this.hasFocus = false;
-            this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
-            this.focusGraphContext.clearRect(0, 0, this.focusGraphCanvas.width, this.focusGraphCanvas.height);
-          }
-        }, {
           key: "moveFocusArea",
           value: function moveFocusArea(evt) {
-            if (this.scope.ctrl.focusMode) {
-              if (!this.focusAreaIsFixed) {
-                this.drawFocus(evt);
-                evt.preventDefault();
-              }
+            if (!this.focusAreaIsFixed) {
+              this.drawFocus(evt);
+              evt.preventDefault();
             }
           }
         }, {
           key: "fixFocusArea",
           value: function fixFocusArea(evt) {
-            if (this.scope.ctrl.focusMode) {
-              if (this.focusAreaIsFixed) {
-                this.drawFocus(evt);
-              }
-
-              this.focusAreaIsFixed = !this.focusAreaIsFixed;
-              evt.preventDefault();
+            if (this.focusAreaIsFixed) {
+              this.drawFocus(evt);
             }
+
+            this.focusAreaIsFixed = !this.focusAreaIsFixed;
+            evt.preventDefault();
           }
         }, {
           key: "drawFocus",
@@ -434,6 +409,13 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             this.clearFocus();
             this.drawFocusArea();
             this.drawFocusGraph();
+          }
+        }, {
+          key: "clearFocus",
+          value: function clearFocus() {
+            this.hasFocus = false;
+            this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
+            this.focusGraphContext.clearRect(0, 0, this.focusGraphCanvas.width, this.focusGraphCanvas.height);
           }
         }, {
           key: "getMousePos",
