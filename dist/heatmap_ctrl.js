@@ -1,9 +1,9 @@
 "use strict";
 
-System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _context) {
+System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_export, _context) {
   "use strict";
 
-  var MetricsPanelCtrl, HeatmapCtrl;
+  var MetricsPanelCtrl, _, HeatmapCtrl;
 
   function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
@@ -26,7 +26,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _conte
   return {
     setters: [function (_appPluginsSdk) {
       MetricsPanelCtrl = _appPluginsSdk.MetricsPanelCtrl;
-    }, function (_heatmapCss) {}],
+    }, function (_heatmapCss) {}, function (_lodash) {
+      _ = _lodash.default;
+    }],
     execute: function () {
       _export("HeatmapCtrl", HeatmapCtrl =
       /*#__PURE__*/
@@ -50,8 +52,6 @@ System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _conte
 
           _this.initialiseConfig();
 
-          _this.loadData();
-
           return _this;
         }
 
@@ -63,75 +63,305 @@ System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _conte
               instancePropertyName: "instance",
               dateFormat: "DD-MM-YYYY HH:mm",
               focusAreaColor: "aqua",
-              focusAreaSize: 20,
-              colors: ["ff9494", "ff3030", "c70000", "600000"],
+              focusAreaSize: 30,
+              metricCount: 3,
+              CPUColors: ["f2d9e6", "d98cb3", "bf4080", "73264d"],
+              memoryColors: ["ccddff", "6699ff", "0055ff", "003399"],
+              storageColors: ["eeeedd", "cccc99", "aaaa55", "666633"],
               luminanceLevel: 0.5,
+              overviewPointWidth: 1,
+              overviewPointHeight: 1,
+              paddingBetweenGraphs: 50,
+              leftPadding: 0,
+              horizontalMargin: 40,
+              verticalMargin: 20,
               fontSize: 15,
-              overviewPointSize: 1,
               focusPointWidth: 5,
               focusPointHeight: 30,
-              leftPadding: 0,
-              horizontalPadding: 40,
-              verticalPadding: 20,
-              paddingBetweenGraphs: 50
+              focusGraphMargins: 10
             };
           }
         }, {
-          key: "loadData",
-          value: function loadData() {
+          key: "onDataReceived",
+          value: function onDataReceived() {
+            if (this.updateVariable) {
+              this.updateVariable = false;
+            } else {
+              this.load();
+            }
+          }
+        }, {
+          key: "load",
+          value: function load() {
             var _this2 = this;
 
-            this.rawData = {};
-            this.maxLoadCount = 5;
-            this.loadCount = 0;
-            this.fromDate = Math.round(this.timeSrv.timeRange().from._d.getTime() / 1000);
-            this.toDate = Math.round(this.timeSrv.timeRange().to._d.getTime() / 1000);
-            this.getDataFromAPI("node_load1", function (data) {
-              _this2.rawData.totalMemory = data;
+            this.$timeout(function () {
+              if (_this2.scope.ctrl.isLoading) {
+                _this2.load();
+              } else {
+                _this2.scope.ctrl.isLoading = true;
+                _this2.rawData = {};
+                _this2.maxLoadCount = 7;
+                _this2.loadCount = 0;
+                _this2.fromDate = Math.round(_this2.timeSrv.timeRange().from._d.getTime() / 1000);
+                _this2.toDate = Math.round(_this2.timeSrv.timeRange().to._d.getTime() / 1000);
+
+                _this2.getCPUData();
+
+                _this2.getMemoryData();
+
+                _this2.getStorageData();
+
+                _this2.processRawData();
+              }
+            }, 100);
+          }
+        }, {
+          key: "getCPUData",
+          value: function getCPUData() {
+            var _this3 = this;
+
+            this.getDataFromAPI("node_load1{job='node'}", function (data) {
+              _this3.rawData.CPU = data;
             });
-            this.getDataFromAPI("node_memory_MemTotal_bytes", function (data) {
-              _this2.rawData.totalMemory = data;
-            });
-            this.getDataFromAPI("node_memory_MemFree_bytes", function (data) {
-              _this2.rawData.freeMemory = data;
-            });
-            this.getDataFromAPI("node_memory_Cached_bytes", function (data) {
-              _this2.rawData.cachedMemory = data;
-            });
-            this.getDataFromAPI("node_memory_Buffers_bytes", function (data) {
-              _this2.rawData.bufferMemory = data;
-            });
-            this.processRawData();
           }
         }, {
           key: "getDataFromAPI",
           value: function getDataFromAPI(metric, callback) {
-            var _this3 = this;
+            var _this4 = this;
 
             var xmlHttp = new XMLHttpRequest();
 
             xmlHttp.onreadystatechange = function () {
-              ++_this3.loadCount;
+              if (xmlHttp.readyState == 4) {
+                ++_this4.loadCount;
 
-              if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
-                callback(JSON.parse(xmlHttp.responseText).data.result);
+                if (xmlHttp.status == 200) {
+                  callback(JSON.parse(xmlHttp.responseText).data.result);
+                }
               }
             };
 
-            var url = this.config.apiAddress + metric + "&start=" + this.fromDate + "&end=" + this.toDate + "&step=15";
+            var url = this.config.apiAddress + encodeURIComponent(metric) + "&start=" + this.fromDate + "&end=" + this.toDate + "&step=15";
             xmlHttp.open("GET", url, true);
             xmlHttp.send(null);
           }
         }, {
+          key: "getMemoryData",
+          value: function getMemoryData() {
+            var _this5 = this;
+
+            this.getDataFromAPI("node_memory_MemTotal_bytes{job='node'}", function (data) {
+              _this5.rawData.totalMemory = data;
+            });
+            this.getDataFromAPI("node_memory_MemFree_bytes{job='node'}", function (data) {
+              _this5.rawData.freeMemory = data;
+            });
+            this.getDataFromAPI("node_memory_Cached_bytes{job='node'}", function (data) {
+              _this5.rawData.cachedMemory = data;
+            });
+            this.getDataFromAPI("node_memory_Buffers_bytes{job='node'}", function (data) {
+              _this5.rawData.bufferMemory = data;
+            });
+          }
+        }, {
+          key: "getStorageData",
+          value: function getStorageData() {
+            var _this6 = this;
+
+            this.getDataFromAPI("sum by (instance) (node_filesystem_size_bytes{job='node',device!~'rootfs'})", function (data) {
+              _this6.rawData.totalStorage = data;
+            });
+            this.getDataFromAPI("sum by (instance) (node_filesystem_avail_bytes{job='node',device!~'(?:rootfs|/dev/loop.+)',mountpoint!~'(?:/mnt/nfs/|/run|/var/run|/cdrom).*'})", function (data) {
+              _this6.rawData.freeStorage = data;
+            });
+          }
+        }, {
           key: "processRawData",
           value: function processRawData() {
-            var _this4 = this;
+            var _this7 = this;
 
             this.$timeout(function () {
-              if (_this4.loadCount < _this4.maxLoadCount) {
-                _this4.processRawData();
-              } else {}
+              if (_this7.loadCount < _this7.maxLoadCount) {
+                _this7.processRawData.bind(_this7)();
+              } else {
+                _this7.scope.ctrl.isLoading = false;
+
+                _this7.convertDataToFloat(_this7.rawData.CPU);
+
+                _this7.overviewModel.CPU = {};
+                _this7.overviewModel.CPU.data = _this7.rawData.CPU;
+
+                _this7.processMemoryData();
+
+                _this7.processStorageData();
+
+                _this7.initiliseOverviewCanvasData();
+
+                _this7.initialiseOverviewMixMax();
+
+                _this7.initialiseColorMap();
+
+                _this7.renderOverview();
+              }
             }, 100);
+          }
+        }, {
+          key: "convertDataToFloat",
+          value: function convertDataToFloat(data) {
+            data.forEach(function (instance) {
+              instance.values.forEach(function (value) {
+                value[0] = parseFloat(value[0]);
+                value[1] = parseFloat(value[1]);
+              });
+            });
+          }
+        }, {
+          key: "processMemoryData",
+          value: function processMemoryData() {
+            var _this8 = this;
+
+            if (this.rawData.totalMemory.length > 0) {
+              this.convertDataToFloat(this.rawData.totalMemory);
+              this.convertDataToFloat(this.rawData.freeMemory);
+              this.convertDataToFloat(this.rawData.cachedMemory);
+              this.convertDataToFloat(this.rawData.bufferMemory);
+              var memoryData = [];
+              this.rawData.totalMemory.forEach(function (instance) {
+                var memoryInstance = {};
+                memoryInstance.metric = instance.metric;
+                memoryInstance.totalValues = instance.values;
+                memoryInstance.freeValues = _.find(_this8.rawData.freeMemory, function (search) {
+                  return search.metric.instance == memoryInstance.metric.instance;
+                }).values;
+                memoryInstance.cachedValues = _.find(_this8.rawData.cachedMemory, function (search) {
+                  return search.metric.instance == memoryInstance.metric.instance;
+                }).values;
+                memoryInstance.bufferValues = _.find(_this8.rawData.bufferMemory, function (search) {
+                  return search.metric.instance == memoryInstance.metric.instance;
+                }).values;
+
+                _this8.addUsedMemoryData(memoryInstance);
+
+                memoryData.push(memoryInstance);
+              });
+              this.overviewModel.memory = {};
+              this.overviewModel.memory.data = memoryData;
+            }
+          }
+        }, {
+          key: "addUsedMemoryData",
+          value: function addUsedMemoryData(memoryInstance) {
+            memoryInstance.usedValues = [];
+            memoryInstance.usedPercentageValues = [];
+
+            if (memoryInstance.totalValues.length == memoryInstance.bufferValues.length && memoryInstance.bufferValues.length == memoryInstance.freeValues.length && memoryInstance.freeValues.length == memoryInstance.cachedValues.length) {
+              for (var i = 0; i < memoryInstance.totalValues.length; ++i) {
+                var time = memoryInstance.totalValues[i][0];
+                var value = memoryInstance.totalValues[i][1] + memoryInstance.bufferValues[i][1] - memoryInstance.freeValues[i][1] - memoryInstance.cachedValues[i][1];
+                memoryInstance.usedValues.push([time, value]);
+              }
+
+              for (var i = 0; i < memoryInstance.usedValues.length; ++i) {
+                var time = memoryInstance.usedValues[i][0];
+                var value = memoryInstance.usedValues[i][1] * 100 / (memoryInstance.totalValues[i][1] + memoryInstance.bufferValues[i][1]);
+                memoryInstance.usedPercentageValues.push([time, value]);
+              }
+            }
+          }
+        }, {
+          key: "processStorageData",
+          value: function processStorageData() {
+            var _this9 = this;
+
+            if (this.rawData.totalStorage.length > 0) {
+              this.convertDataToFloat(this.rawData.totalStorage);
+              this.convertDataToFloat(this.rawData.freeStorage);
+              var storageData = [];
+              this.rawData.totalStorage.forEach(function (instance) {
+                var storageInstance = {};
+                storageInstance.metric = instance.metric;
+                storageInstance.totalValues = instance.values;
+                storageInstance.freeValues = _.find(_this9.rawData.freeStorage, function (search) {
+                  return search.metric.instance == storageInstance.metric.instance;
+                }).values;
+
+                _this9.addUsedStorageData(storageInstance);
+
+                storageData.push(storageInstance);
+              });
+              this.overviewModel.storage = {};
+              this.overviewModel.storage.data = storageData;
+            }
+          }
+        }, {
+          key: "addUsedStorageData",
+          value: function addUsedStorageData(storageInstance) {
+            storageInstance.usedValues = [];
+            storageInstance.usedPercentageValues = [];
+
+            if (storageInstance.totalValues.length == storageInstance.freeValues.length) {
+              for (var i = 0; i < storageInstance.totalValues.length; ++i) {
+                var time = storageInstance.totalValues[i][0];
+                var value = storageInstance.totalValues[i][1] - storageInstance.freeValues[i][1];
+                storageInstance.usedValues.push([time, value]);
+              }
+
+              for (var i = 0; i < storageInstance.usedValues.length; ++i) {
+                var time = storageInstance.usedValues[i][0];
+                var value = storageInstance.usedValues[i][1] * 100 / storageInstance.totalValues[i][1];
+                storageInstance.usedPercentageValues.push([time, value]);
+              }
+            }
+          }
+        }, {
+          key: "initiliseOverviewCanvasData",
+          value: function initiliseOverviewCanvasData() {
+            var _this10 = this;
+
+            this.overviewModel.canvasData = [];
+            this.initialiseOverViewCanvasDataByMetric(this.overviewModel.CPU, function (newInstance, metricInstance) {
+              _this10.convertValuePairToProperties(newInstance.CPUValues, metricInstance.values);
+
+              _this10.overviewModel.canvasData.push(newInstance);
+            });
+            this.initialiseOverViewCanvasDataByMetric(this.overviewModel.memory, function (newInstance, metricInstance) {
+              _this10.convertValuePairToProperties(newInstance.memoryValues, metricInstance.usedPercentageValues);
+            });
+            this.initialiseOverViewCanvasDataByMetric(this.overviewModel.storage, function (newInstance, metricInstance) {
+              _this10.convertValuePairToProperties(newInstance.storageValues, metricInstance.usedPercentageValues);
+            });
+          }
+        }, {
+          key: "initialiseOverViewCanvasDataByMetric",
+          value: function initialiseOverViewCanvasDataByMetric(metric, newInstanceCallback) {
+            var _this11 = this;
+
+            metric.data.forEach(function (metricInstance) {
+              var newInstance = _.find(_this11.overviewModel.canvasData, function (search) {
+                return metricInstance.metric.instance == search.instance;
+              });
+
+              if (!newInstance) {
+                newInstance = {};
+                newInstance.instance = metricInstance.metric.instance;
+                newInstance.CPUValues = [];
+                newInstance.memoryValues = [];
+                newInstance.storageValues = [];
+              }
+
+              newInstanceCallback(newInstance, metricInstance);
+            });
+          }
+        }, {
+          key: "convertValuePairToProperties",
+          value: function convertValuePairToProperties(newInstanceList, metricInstanceList) {
+            metricInstanceList.forEach(function (value) {
+              var point = {};
+              point.date = value[0];
+              point.value = value[1];
+              newInstanceList.push(point);
+            });
           }
         }, {
           key: "link",
@@ -232,159 +462,216 @@ System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _conte
           key: "drawFocusGraph",
           value: function drawFocusGraph() {
             this.initialiseFocusGraphData();
-            this.drawVertical();
+            this.drawFocusGraphLabels();
             this.drawFocusGraphData();
           }
         }, {
           key: "initialiseFocusGraphData",
           value: function initialiseFocusGraphData() {
-            var _this5 = this;
+            var _this12 = this;
 
             this.focusModel.data = [];
-            this.overviewModel.data.forEach(function (instance, index) {
-              if (_this5.checkInstanceIsFocused(instance)) {
+            this.overviewModel.canvasData.forEach(function (instance) {
+              if (instance.overviewY >= _this12.focusStartY && instance.overviewY <= _this12.focusStartY + _this12.getFocusAreaSize()) {
                 var modalInstance = {};
-                modalInstance.pointList = [];
                 modalInstance.instance = instance.instance;
+                modalInstance.CPUValues = [];
+                modalInstance.memoryValues = [];
+                modalInstance.storageValues = [];
+                var indexes = [];
 
-                _this5.focusModel.data.push(modalInstance);
+                if (instance.CPUValues.length > 0) {
+                  indexes = _this12.getPointIndexesInFocus(instance.CPUValues);
+                } else if (instance.memoryValues.length > 0) {
+                  indexes = _this12.getPointIndexesInFocus(instance.memoryValues);
+                } else {
+                  indexes = _this12.getPointIndexesInFocus(instance.storageValues);
+                }
 
-                instance.pointList.forEach(function (point) {
-                  if (_this5.checkPointIsFocused(point)) {
-                    modalInstance.pointList.push(point);
-                  }
-                });
+                _this12.addPointToFocusByList(modalInstance.CPUValues, instance.CPUValues, indexes);
 
-                _this5.initialiseInstanceLayers(modalInstance);
+                _this12.addPointToFocusByList(modalInstance.memoryValues, instance.memoryValues, indexes);
+
+                _this12.addPointToFocusByList(modalInstance.storageValues, instance.storageValues, indexes);
+
+                _this12.initialiseInstanceLayers(modalInstance);
+
+                _this12.focusModel.data.push(modalInstance);
               }
+            });
+          }
+        }, {
+          key: "getPointIndexesInFocus",
+          value: function getPointIndexesInFocus(list, indexes) {
+            var _this13 = this;
+
+            var indexes = [];
+            list.forEach(function (point, index) {
+              if (point.x >= _this13.focusStartX && point.x <= _this13.focusStartX + _this13.getFocusAreaSize()) {
+                indexes.push(index);
+              }
+            });
+            return indexes;
+          }
+        }, {
+          key: "addPointToFocusByList",
+          value: function addPointToFocusByList(focusList, overviewList, indexes) {
+            indexes.forEach(function (index) {
+              focusList.push(overviewList[index]);
             });
           }
         }, {
           key: "initialiseInstanceLayers",
           value: function initialiseInstanceLayers(instance) {
-            var _this6 = this;
-
-            instance.layers = [];
-            this.config.colors.forEach(function (color) {
+            instance.CPUlayers = [];
+            this.initialiseLayersByMetric(instance.CPUlayers, this.config.CPUColors, instance.CPUValues, this.overviewModel.CPU.layerRange);
+            instance.memoryLayers = [];
+            this.initialiseLayersByMetric(instance.memoryLayers, this.config.memoryColors, instance.memoryValues, this.overviewModel.memory.layerRange);
+            instance.storageLayers = [];
+            this.initialiseLayersByMetric(instance.storageLayers, this.config.storageColors, instance.storageValues, this.overviewModel.storage.layerRange);
+          }
+        }, {
+          key: "initialiseLayersByMetric",
+          value: function initialiseLayersByMetric(layers, colors, valueList, layerRange) {
+            colors.forEach(function () {
               var layer = {};
               layer.valueList = [];
-              instance.layers.push(layer);
+              layers.push(layer);
             });
-            instance.pointList.forEach(function (point) {
-              var value = point.Value;
-              instance.layers.forEach(function (layer) {
+            valueList.forEach(function (point) {
+              var value = point.value;
+              layers.forEach(function (layer) {
                 layer.valueList.push(value > 0 ? value : 0);
-                value -= _this6.layerRange;
+                value -= layerRange;
               });
             });
           }
         }, {
-          key: "checkInstanceIsFocused",
-          value: function checkInstanceIsFocused(instance) {
-            return instance.overviewY >= this.focusStartY && instance.overviewY <= this.focusStartY + this.getFocusAreaSize();
-          }
-        }, {
-          key: "checkPointIsFocused",
-          value: function checkPointIsFocused(point) {
-            return point.x >= this.focusStartX && point.x <= this.focusStartX + this.getFocusAreaSize();
-          }
-        }, {
-          key: "drawVertical",
-          value: function drawVertical() {
-            var _this7 = this;
+          key: "drawFocusGraphLabels",
+          value: function drawFocusGraphLabels() {
+            var _this14 = this;
 
             this.focusModel.horizontalX = 0;
+            this.focusGraphContext.setLineDash([10, 10]);
             this.focusGraphContext.fillStyle = "black";
+            this.focusModel.instanceHeight = (this.config.focusPointHeight + this.config.focusGraphMargins) * this.config.metricCount;
             this.focusModel.data.forEach(function (instance, index) {
+              var x = _this14.config.leftPadding;
               var label = instance.instance;
-              instance.y = _this7.config.focusPointHeight + index * (_this7.config.focusPointHeight + _this7.config.verticalPadding);
 
-              _this7.focusGraphContext.fillText(label, _this7.config.leftPadding, instance.y);
+              var metrics = _this14.focusGraphContext.measureText(label);
 
-              var metrics = _this7.focusGraphContext.measureText(label);
+              instance.y = index * (_this14.focusModel.instanceHeight + _this14.config.verticalMargin);
+              var labelY = instance.y + _this14.focusModel.instanceHeight / 2;
 
-              if (metrics.width > _this7.focusModel.horizontalX) {
-                _this7.focusModel.horizontalX = metrics.width;
+              _this14.focusGraphContext.fillText(label, x, labelY);
+
+              if (index > 0) {
+                var lineY = instance.y - _this14.config.verticalMargin / 2;
+
+                _this14.focusGraphContext.beginPath();
+
+                _this14.focusGraphContext.moveTo(x, lineY);
+
+                _this14.focusGraphContext.lineTo(10000, lineY);
+
+                _this14.focusGraphContext.stroke();
+              }
+
+              if (metrics.width > _this14.focusModel.horizontalX) {
+                _this14.focusModel.horizontalX = metrics.width + _this14.config.leftPadding;
               }
             });
-            this.focusModel.horizontalX += this.config.horizontalPadding;
+            this.focusModel.horizontalX += this.config.horizontalMargin;
           }
         }, {
           key: "drawFocusGraphData",
           value: function drawFocusGraphData() {
-            var _this8 = this;
+            var _this15 = this;
 
             this.focusModel.data.forEach(function (instance) {
-              instance.layers.forEach(function (layer, layerIndex) {
-                _this8.focusGraphContext.beginPath();
+              _this15.drawFocusGraphDataByLayers(instance, instance.CPUlayers, _this15.config.CPUColors, _this15.overviewModel.CPU.layerRange, 0);
 
-                _this8.focusGraphContext.moveTo(_this8.focusModel.horizontalX, instance.y);
+              _this15.drawFocusGraphDataByLayers(instance, instance.memoryLayers, _this15.config.memoryColors, _this15.overviewModel.memory.layerRange, 1);
 
-                var x = _this8.focusModel.horizontalX;
-                var previousX = 0;
-                var previousValue = 0;
-                layer.valueList.forEach(function (value, valueIndex) {
-                  x += valueIndex * _this8.config.focusPointWidth;
+              _this15.drawFocusGraphDataByLayers(instance, instance.storageLayers, _this15.config.storageColors, _this15.overviewModel.storage.layerRange, 2);
+            });
+          }
+        }, {
+          key: "drawFocusGraphDataByLayers",
+          value: function drawFocusGraphDataByLayers(instance, layers, colors, layerRange, metricIndex) {
+            var _this16 = this;
 
-                  _this8.moveContextBasedOnValue(value, previousValue, previousX, instance, layerIndex, x);
+            layers.forEach(function (layer, layerIndex) {
+              var y = instance.y + (_this16.config.focusPointHeight + _this16.config.focusGraphMargins) * metricIndex + _this16.config.focusPointHeight;
 
-                  previousX = x;
-                  previousValue = value;
-                });
+              _this16.focusGraphContext.beginPath();
 
-                _this8.focusGraphContext.lineTo(x, instance.y);
+              _this16.focusGraphContext.moveTo(_this16.focusModel.horizontalX, y);
 
-                _this8.focusGraphContext.lineTo(_this8.focusModel.horizontalX, instance.y);
+              var x = _this16.focusModel.horizontalX;
+              var previousX = x;
+              var previousValue = 0;
+              layer.valueList.forEach(function (value, valueIndex) {
+                x += valueIndex * _this16.config.focusPointWidth;
 
-                _this8.focusGraphContext.closePath();
+                _this16.moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, layerRange);
 
-                _this8.focusGraphContext.fillStyle = "#" + _this8.config.colors[layerIndex];
-
-                _this8.focusGraphContext.fill();
+                previousX = x;
+                previousValue = value;
               });
+
+              _this16.focusGraphContext.lineTo(x, y);
+
+              _this16.focusGraphContext.lineTo(_this16.focusModel.horizontalX, y);
+
+              _this16.focusGraphContext.closePath();
+
+              _this16.focusGraphContext.fillStyle = "#" + colors[layerIndex];
+
+              _this16.focusGraphContext.fill();
             });
           }
         }, {
           key: "moveContextBasedOnValue",
-          value: function moveContextBasedOnValue(value, previousValue, previousX, instance, layerIndex, x) {
+          value: function moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, layerRange) {
             if (value == 0) {
-              this.focusGraphContext.lineTo(previousX, instance.y);
+              this.focusGraphContext.lineTo(previousX, y);
             } else {
               if (layerIndex > 0 && previousValue == 0) {
-                this.focusGraphContext.lineTo(x, instance.y);
+                this.focusGraphContext.lineTo(x, y);
               }
 
-              if (value >= this.layerRange) {
-                this.focusGraphContext.lineTo(x, instance.y - this.config.focusPointHeight);
+              if (value >= layerRange) {
+                this.focusGraphContext.lineTo(x, y - this.config.focusPointHeight);
               } else {
-                this.focusGraphContext.lineTo(x, instance.y - value * this.config.focusPointHeight / this.layerRange);
+                this.focusGraphContext.lineTo(x, y - value * this.config.focusPointHeight / layerRange);
               }
             }
           }
         }, {
           key: "selectNode",
           value: function selectNode(evt) {
-            var _this9 = this;
+            var _this17 = this;
 
             if (!this.updateVariable) {
               var mousePos = this.getMousePos(event, this.focusGraphCanvas);
               this.scope.ctrl.menuX = mousePos.x;
               this.scope.ctrl.menuY = mousePos.y;
-              var instanceHeight = this.config.focusPointHeight + this.config.verticalPadding;
 
               for (var i = 0; i < this.focusModel.data.length; ++i) {
-                if (instanceHeight * i <= mousePos.y && mousePos.y <= instanceHeight * (i + 1)) {
+                if (this.focusModel.instanceHeight * i <= mousePos.y && mousePos.y <= this.focusModel.instanceHeight * (i + 1)) {
                   var instance = this.focusModel.data[i];
                   this.variableSrv.variables.forEach(function (v) {
                     if (v.name == "node") {
-                      _this9.variableSrv.setOptionAsCurrent(v, {
+                      _this17.variableSrv.setOptionAsCurrent(v, {
                         text: instance.instance,
                         value: instance.instance
                       });
 
-                      _this9.updateVariable = true;
+                      _this17.updateVariable = true;
 
-                      _this9.variableSrv.variableUpdated(v, true);
+                      _this17.variableSrv.variableUpdated(v, true);
                     }
                   });
                   break;
@@ -404,123 +691,91 @@ System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _conte
             this.focusGraphContext.font = this.config.fontSize + "px arial";
           }
         }, {
-          key: "onDataReceived",
-          value: function onDataReceived(dataList) {
-            if (this.updateVariable) {
-              this.updateVariable = false;
-            } else {
-              this.parseTable(dataList);
-              this.initialiseColorMap();
-              this.renderOverview();
-            }
-          }
-        }, {
-          key: "parseTable",
-          value: function parseTable(dataList) {
-            this.overviewModel.data = [];
-
-            if (dataList.length == 1) {
-              var table = dataList[0];
-              console.log("Table: ");
-              console.log(table);
-              var instanceColumnIndex = this.getInstanceColumnIndex(table);
-
-              for (var rowIndex = 0; rowIndex < table.rows.length; ++rowIndex) {
-                var row = table.rows[rowIndex];
-                var instance = this.getExistingInstance(row[instanceColumnIndex]);
-                var point = {};
-
-                for (var columnIndex = 0; columnIndex < table.columns.length; ++columnIndex) {
-                  point[table.columns[columnIndex].text] = row[columnIndex];
-                }
-
-                instance.pointList.push(point);
-              }
-
-              console.log(this.overviewModel.data);
-            }
-          }
-        }, {
-          key: "getInstanceColumnIndex",
-          value: function getInstanceColumnIndex(table) {
-            for (var i = 0; i < table.columns.length; ++i) {
-              if (table.columns[i].text == this.config.instancePropertyName) {
-                return i;
-              }
-            }
-
-            return -1;
-          }
-        }, {
-          key: "getExistingInstance",
-          value: function getExistingInstance(instanceName) {
-            for (var i = 0; i < this.overviewModel.data.length; ++i) {
-              var current = this.overviewModel.data[i];
-
-              if (current.instance == instanceName) {
-                return current;
-              }
-            }
-
-            var instance = {};
-            instance.instance = instanceName;
-            instance.pointList = [];
-            this.overviewModel.data.push(instance);
-            return instance;
-          }
-        }, {
-          key: "initialiseColorMap",
-          value: function initialiseColorMap() {
-            this.initialiseOverviewMixMax();
-            this.overviewModel.colorMap = new Map();
-            this.layerRange = this.overviewModel.max / (this.config.colors.length - 0.5);
-
-            for (var i = 0; i < this.config.colors.length; ++i) {
-              var threshold = {};
-              threshold.min = i * this.layerRange;
-              threshold.max = threshold.min + this.layerRange;
-              this.overviewModel.colorMap.set(threshold, this.config.colors[i]);
-            }
-          }
-        }, {
           key: "initialiseOverviewMixMax",
           value: function initialiseOverviewMixMax() {
-            var _this10 = this;
-
             this.overviewModel.min = -1;
             this.overviewModel.max = -1;
-            this.overviewModel.data.forEach(function (instance) {
-              instance.pointList.forEach(function (point) {
-                _this10.checkAndSetOverviewMinMax(point);
+            this.initialiseCPUMinMax();
+            this.initialiseMemoryStorageMinMax(this.overviewModel.memory);
+            this.initialiseMemoryStorageMinMax(this.overviewModel.storage);
+          }
+        }, {
+          key: "initialiseCPUMinMax",
+          value: function initialiseCPUMinMax(metric) {
+            var _this18 = this;
+
+            this.overviewModel.CPU.min = -1;
+            this.overviewModel.CPU.max = -1;
+            this.overviewModel.CPU.data.forEach(function (instance) {
+              instance.values.forEach(function (point) {
+                _this18.checkAndSetOverviewMinMax(_this18.overviewModel.CPU, point);
               });
             });
           }
         }, {
           key: "checkAndSetOverviewMinMax",
-          value: function checkAndSetOverviewMinMax(point) {
-            var value = point.Value;
+          value: function checkAndSetOverviewMinMax(metric, point) {
+            var value = point[1];
 
-            if (this.overviewModel.min == -1) {
-              this.overviewModel.min = value;
-              this.overviewModel.max = value;
+            if (metric.min == -1) {
+              metric.min = value;
+              metric.max = value;
             } else {
-              if (value < this.overviewModel.min) {
-                this.overviewModel.min = value;
+              if (value < metric.min) {
+                metric.min = value;
               }
 
-              if (value > this.overviewModel.max) {
-                this.overviewModel.max = value;
+              if (value > metric.max) {
+                metric.max = value;
               }
+            }
+          }
+        }, {
+          key: "initialiseMemoryStorageMinMax",
+          value: function initialiseMemoryStorageMinMax(metric) {
+            var _this19 = this;
+
+            metric.min = -1;
+            metric.max = -1;
+            metric.data.forEach(function (instance) {
+              instance.usedPercentageValues.forEach(function (point) {
+                _this19.checkAndSetOverviewMinMax(metric, point);
+              });
+            });
+          }
+        }, {
+          key: "initialiseColorMap",
+          value: function initialiseColorMap() {
+            this.initialiseColorMapByMetric(this.overviewModel.CPU, this.config.CPUColors);
+            this.initialiseColorMapByMetric(this.overviewModel.memory, this.config.memoryColors);
+            this.initialiseColorMapByMetric(this.overviewModel.storage, this.config.storageColors);
+          }
+        }, {
+          key: "initialiseColorMapByMetric",
+          value: function initialiseColorMapByMetric(metric, colors) {
+            metric.colorMap = new Map();
+            metric.layerRange = metric.max / (colors.length - 0.5);
+
+            for (var i = 0; i < colors.length; ++i) {
+              var threshold = {};
+              threshold.min = i * metric.layerRange;
+              threshold.max = threshold.min + metric.layerRange;
+              metric.colorMap.set(threshold, colors[i]);
             }
           }
         }, {
           key: "renderOverview",
           value: function renderOverview() {
-            if (this.overviewModel.data && this.overviewModel.data.length > 0) {
+            if (this.checkMetricHasData(this.overviewModel.CPU) || this.checkMetricHasData(this.overviewModel.memory) || this.checkMetricHasData(this.overviewModel.storage)) {
               this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
               this.clearFocus();
               this.drawOverviewData();
             }
+          }
+        }, {
+          key: "checkMetricHasData",
+          value: function checkMetricHasData(metric) {
+            return metric.data && metric.data.length > 0;
           }
         }, {
           key: "drawOverviewData",
@@ -533,30 +788,41 @@ System.register(["app/plugins/sdk", "./heatmap.css!"], function (_export, _conte
         }, {
           key: "drawOverviewDataWrapper",
           value: function drawOverviewDataWrapper() {
-            var _this11 = this;
+            var _this20 = this;
 
-            this.scope.ctrl.overviewWidth = this.overviewModel.data[0].pointList.length * this.config.overviewPointSize;
-            this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.config.overviewPointSize;
+            var firstInstance = this.overviewModel.canvasData[0];
+            var maxLength = Math.max(firstInstance.CPUValues.length, firstInstance.memoryValues.length, firstInstance.storageValues.length);
+            this.scope.ctrl.overviewWidth = maxLength * this.config.overviewPointHeight;
+            this.scope.ctrl.overviewHeight = this.overviewModel.canvasData.length * this.config.overviewPointHeight * this.config.metricCount * 3;
             this.scope.ctrl.focusGraphMarginTop = this.scope.ctrl.overviewHeight + this.config.paddingBetweenGraphs;
             this.scope.$apply();
-            this.overviewModel.data.forEach(function (instance, index) {
-              instance.overviewY = index * _this11.config.overviewPointSize;
+            this.overviewModel.canvasData.forEach(function (instance, index) {
+              instance.overviewY = index * _this20.config.overviewPointHeight * _this20.config.metricCount * 3;
 
-              for (var i = 0; i < instance.pointList.length; ++i) {
-                var point = instance.pointList[i];
-                point.x = _this11.config.leftPadding + i * _this11.config.overviewPointSize;
-                point.color = _this11.getColorFromMap(point.Value);
-                _this11.overviewContext.fillStyle = point.color;
+              _this20.drawMetricOverviewData(instance.CPUValues, instance, _this20.overviewModel.CPU.colorMap, 0);
 
-                _this11.overviewContext.fillRect(point.x, instance.overviewY, _this11.config.overviewPointSize, _this11.config.overviewPointSize);
-              }
+              _this20.drawMetricOverviewData(instance.memoryValues, instance, _this20.overviewModel.memory.colorMap, 1);
+
+              _this20.drawMetricOverviewData(instance.storageValues, instance, _this20.overviewModel.storage.colorMap, 2);
             });
           }
         }, {
+          key: "drawMetricOverviewData",
+          value: function drawMetricOverviewData(valueList, instance, colorMap, index) {
+            for (var i = 0; i < valueList.length; ++i) {
+              var point = valueList[i];
+              point.x = this.config.leftPadding + i * this.config.overviewPointWidth;
+              point.color = this.getColorFromMap(point.value, colorMap);
+              this.overviewContext.fillStyle = point.color;
+              var y = instance.overviewY + index * this.config.overviewPointHeight * 2;
+              this.overviewContext.fillRect(point.x, y, this.config.overviewPointHeight, this.config.overviewPointHeight);
+            }
+          }
+        }, {
           key: "getColorFromMap",
-          value: function getColorFromMap(value) {
+          value: function getColorFromMap(value, map) {
             var result;
-            this.overviewModel.colorMap.forEach(function (color, threshold) {
+            map.forEach(function (color, threshold) {
               if (threshold.min <= value && value <= threshold.max) {
                 result = color;
               }
