@@ -658,9 +658,10 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               var mousePos = this.getMousePos(event, this.focusGraphCanvas);
               this.scope.ctrl.menuX = mousePos.x;
               this.scope.ctrl.menuY = mousePos.y;
+              var height = this.focusModel.instanceHeight + this.config.verticalMargin;
 
               for (var i = 0; i < this.focusModel.data.length; ++i) {
-                if (this.focusModel.instanceHeight * i <= mousePos.y && mousePos.y <= this.focusModel.instanceHeight * (i + 1)) {
+                if (height * i <= mousePos.y && mousePos.y <= height * (i + 1)) {
                   var instance = this.focusModel.data[i];
                   this.variableSrv.variables.forEach(function (v) {
                     if (v.name == "node") {
