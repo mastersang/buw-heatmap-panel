@@ -3,9 +3,13 @@
 
     <div ng-hide="ctrl.isLoading">
         <div style="width:100%; height:100%">
-            <div>&nbsp;</div>
+            <select ng-model="ctrl.linkingMode" ng-change="selectLinker()">
+                <option value="xCross">X Cross</option>
+                <option value="normalCross">Normal cross</option>
+                <option value="changeColor">Change color</option>
+            </select>
 
-            <div style="position:relative">
+            <div style="position:relative;margin-top: 10px">
                 <canvas id="overviewCanvas" style="position:absolute" width="{{ctrl.overviewWidth}}"
                     height="{{ctrl.overviewHeight}}"></canvas>
                 <canvas id="focusAreaCanvas" width="{{ctrl.overviewWidth}}" height="{{ctrl.overviewHeight}}"
