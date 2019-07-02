@@ -21,20 +21,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             dateFormat: "DD-MM-YYYY HH:mm",
             focusAreaColor: "Aqua",
             focusAreaSize: 20,
-            colors:
-                [
-                    ["f2d9e6", "d98cb3", "bf4080", "73264d"],
-                    ["ccddff", "6699ff", "0055ff", "003399"],
-                    ["eeeedd", "cccc99", "aaaa55", "666633"]
-                ],
-            overviewMode: 2, // 1 = single, 2 = multiple
+            colors: [
+                ["f2d9e6", "d98cb3", "bf4080", "73264d"],
+                ["ccddff", "6699ff", "0055ff", "003399"],
+                ["eeeedd", "cccc99", "aaaa55", "666633"]
+            ],
             overviewPointWidth: 1,
             overviewPointHeight: 1,
             verticalMarginBetweenOverviewMetrics: 2,
             horizontalMarginBetweenOverviewMetrics: 20,
             marginBetweenInstances: 6,
             focusGraphLeftMargin: 40,
-            xCrossSize: 10,
+            xCrossSize: 15,
             marginBetweenOverviewAndFocus: 50,
             fontSize: 15,
             focusPointWidth: 5,
@@ -46,9 +44,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     link(scope, elem, attrs, ctrl) {
         this.scope = scope;
+        this.scope.ctrl.overviewMode = "1";
         this.scope.ctrl.linkingMode = "xCross";
         this.elem = elem;
         var parent = this;
+
+        scope.selectOverviewMode = function () {
+            parent.selectOverviewMode();
+        }
 
         scope.selectLinker = function () {
             parent.selectLinker();
@@ -191,16 +194,22 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseColorMap() {
         this.overviewModel.metricList.forEach((metric, index) => {
             var colors = this.config.colors[index];
-            metric.colorMap = new Map();
             metric.layerRange = metric.max / (colors.length - 0.5);
-
-            for (var i = 0; i < colors.length; ++i) {
-                var threshold = {};
-                threshold.min = i * metric.layerRange;
-                threshold.max = threshold.min + metric.layerRange;
-                metric.colorMap.set(threshold, colors[i]);
-            }
+            metric.colorMap = this.getColorMap(metric, colors);
         });
+    }
+
+    getColorMap(metric, colors) {
+        var colorMap = new Map();
+
+        for (var i = 0; i < colors.length; ++i) {
+            var threshold = {};
+            threshold.min = i * metric.layerRange;
+            threshold.max = threshold.min + metric.layerRange;
+            colorMap.set(threshold, colors[i]);
+        }
+
+        return colorMap;
     }
 
     initiliseOverviewData() {
@@ -229,7 +238,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initaliseNewInstance(metricInstance) {
         var newInstance = {};
         newInstance.instance = metricInstance.metric.instance;
-        newInstance.metricList = [[], [], []];
+        newInstance.metricList = [
+            [],
+            [],
+            []
+        ];
         this.overviewModel.data.push(newInstance);
         return newInstance;
     }
@@ -253,7 +266,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     drawOverviewDataWrapper() {
         var length = this.getInstanceHorizontalLength();
 
-        if (this.config.overviewMode == 1) {
+        if (this.scope.ctrl.overviewMode == "1") {
             this.overviewModel.overviewInstantHeight = this.config.overviewPointHeight * this.overviewModel.metricList.length +
                 this.config.verticalMarginBetweenOverviewMetrics * (this.overviewModel.metricList.length - 1) + this.config.marginBetweenInstances;
             this.scope.ctrl.overviewWidth = length * this.config.overviewPointWidth;
@@ -275,7 +288,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var length = 0;
 
         firstInstance.metricList.forEach((metric, index) => {
-            if (this.config.overviewMode == 1) {
+            if (this.scope.ctrl.overviewMode == "1") {
                 if (metric.length > length) {
                     length = metric.length;
                 }
@@ -359,6 +372,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.focusGraphContext.font = this.config.fontSize + "px arial";
     }
 
+    selectOverviewMode() {
+        this.drawOverviewData();
+    }
+
     selectLinker() {
         this.drawFocusArea();
     }
@@ -405,7 +422,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var size = this.getFocusAreaSize();
             this.focusModel.focusStartY = Math.min(Math.max(0, this.focusModel.mousePosition.y - size / 2), this.overviewCanvas.height - size);
 
-            if (this.config.overviewMode == 1) {
+            if (this.scope.ctrl.overviewMode == "1") {
                 this.drawSingleFocusArea();
             } else {
                 this.drawMultipleFocusArea(true);
@@ -454,8 +471,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
             if (this.checkMouseIsInMetric(metric)) {
                 this.focusModel.mousePositionXOffset = this.focusModel.mousePosition.x - metric.startX;
-                return Math.min(Math.max(metric.startX, this.focusModel.mousePosition.x - this.config.focusAreaSize), metric.endX - this.getFocusAreaSize()) -
-                    metric.startX;
+                this.focusModel.sourceMetricIndex = i;
+                return Math.min(Math.max(metric.startX,
+                    this.focusModel.mousePosition.x - this.config.focusAreaSize),
+                    metric.endX - this.getFocusAreaSize()) - metric.startX;
             }
         }
     }
@@ -469,33 +488,50 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.focusAreaContext.strokeStyle = "rgb(" + pixelData[0] + "," + pixelData[1] + "," + pixelData[2] + ")";
         var instance = this.getLinkerTargetInstance();
 
-        this.overviewModel.metricList.forEach((metric, index) => {
-            if (!this.checkMouseIsInMetric(metric)) {
-                switch (this.scope.ctrl.linkingMode) {
-                    case "xCross":
-                        this.drawXCross(metric, instance);
-                        break;
-
-                    case "normalCross":
-                        this.drawDoubleLine(metric, instance);
-                        break;
-
-                    case "changeColor":
-                        this.changeInstanceColor(metric, instance, index);
-                        break;
-
-                    default:
-                        break;
+        if (instance) {
+            this.overviewModel.metricList.forEach((metric, index) => {
+                if (!this.checkMouseIsInMetric(metric)) {
+                    this.drawLinkersByMode(metric, instance, index);
                 }
+            });
+        }
+    }
+
+    getLinkerTargetInstance() {
+        for (var i = 0; i < this.overviewModel.data.length; ++i) {
+            var instance = this.overviewModel.data[i];
+
+            if (instance.y <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <= instance.y + this.config.overviewPointHeight) {
+                return instance;
             }
-        });
+        }
+    }
+
+    drawLinkersByMode(metric, instance, index) {
+        switch (this.scope.ctrl.linkingMode) {
+            case "xCross":
+                this.drawXCross(metric, instance);
+                break;
+
+            case "normalCross":
+                this.drawNormalCross(metric, instance);
+                break;
+
+            case "changeColor":
+                this.changeInstanceColor(metric, instance, index);
+                break;
+
+            default:
+                break;
+        }
     }
 
     drawXCross(metric, instance) {
-        var x = metric.startX + this.focusModel.mousePositionXOffset;
-        var leftBeginX = x - this.config.xCrossSize;
-        var rightBeginX = x + this.config.overviewPointWidth;
+        var centerX = metric.startX + this.focusModel.mousePositionXOffset;
+        var leftBeginX = centerX - this.config.xCrossSize;
+        var rightBeginX = centerX + this.config.overviewPointWidth;
         var bottomInstance = instance.y + this.config.overviewPointHeight;
+
         this.drawXCrossLine(leftBeginX, instance.y - this.config.xCrossSize, instance.y);
         this.drawXCrossLine(rightBeginX, instance.y, instance.y - this.config.xCrossSize);
         this.drawXCrossLine(leftBeginX, bottomInstance + this.config.xCrossSize, bottomInstance);
@@ -514,18 +550,36 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.focusAreaContext.closePath();
     }
 
-    drawDoubleLine(metric, instance) {
-        var verticalLineX = metric.startX + this.focusModel.mousePositionXOffset;
-        var topLineX = verticalLineX + this.config.overviewPointWidth;
-        var bottonLineX = verticalLineX - this.config.overviewPointWidth;
-        this.drawLineOnFocusAreaCanvas(topLineX, 0, topLineX, instance.y - this.config.overviewPointHeight);
-        this.drawLineOnFocusAreaCanvas(bottonLineX, instance.y + this.config.overviewPointHeight, bottonLineX, this.focusAreaCanvas.height);
+    drawNormalCross(metric, instance) {
+        var focusSize = this.getFocusAreaSize();
+        var centertX = metric.startX + this.focusModel.mousePositionXOffset;
+        var endX = metric.focusStartX + focusSize;
+        var distanceBetweenLines = this.config.overviewPointWidth * 2;
+        var leftLineX = centertX - distanceBetweenLines;
+        var rightLineX = centertX + distanceBetweenLines;
+        var topLineY = instance.y - distanceBetweenLines;
+        var bottomLineY = instance.y + distanceBetweenLines;
+        var endY = this.focusModel.focusStartY + focusSize;
 
-        var centerX = metric.startX + this.focusModel.mousePositionXOffset;
-        var leftLineY = instance.y + this.config.overviewPointHeight;
-        var rightLineY = instance.y - this.config.overviewPointHeight;
-        this.drawLineOnFocusAreaCanvas(metric.startX, leftLineY, centerX - this.config.overviewPointWidth, leftLineY);
-        this.drawLineOnFocusAreaCanvas(centerX + this.config.overviewPointWidth, rightLineY, metric.endX, rightLineY);
+        this.drawNormalCrossLines(metric, endX, leftLineX, rightLineX, topLineY, bottomLineY, endY);
+    }
+
+    drawNormalCrossLines(metric, endX, leftLineX, rightLineX, topLineY, bottomLineY, endY) {
+        // top horizontal
+        this.drawLineOnFocusAreaCanvas(metric.focusStartX, topLineY, leftLineX, topLineY);
+        this.drawLineOnFocusAreaCanvas(rightLineX, topLineY, endX, topLineY);
+
+        // botton horizontal
+        this.drawLineOnFocusAreaCanvas(metric.focusStartX, bottomLineY, leftLineX, bottomLineY);
+        this.drawLineOnFocusAreaCanvas(rightLineX, bottomLineY, endX, bottomLineY);
+
+        // left vertical
+        this.drawLineOnFocusAreaCanvas(leftLineX, this.focusModel.focusStartY, leftLineX, topLineY);
+        this.drawLineOnFocusAreaCanvas(leftLineX, bottomLineY, leftLineX, endY);
+
+        // right vertical
+        this.drawLineOnFocusAreaCanvas(rightLineX, this.focusModel.focusStartY, rightLineX, topLineY);
+        this.drawLineOnFocusAreaCanvas(rightLineX, bottomLineY, rightLineX, endY);
     }
 
     changeInstanceColor(metric, instance, index) {
@@ -533,20 +587,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.clearFocus();
         }
 
-        this.drawLineOnFocusAreaCanvas(metric.startX, instance.y, metric.endX, instance.y);
+        instance.metricList[index].forEach((instancePoint, pointIndex) => {
+            var colorMap = this.getColorMap(metric, this.config.colors[this.focusModel.sourceMetricIndex]);
+            this.focusAreaContext.fillStyle = this.getColorFromMap(instancePoint.value, colorMap);
+            this.focusAreaContext.fillRect(instancePoint.x, instance.y, this.config.overviewPointHeight, this.config.overviewPointHeight);
+
+            if (instancePoint.x == metric.startX + this.focusModel.mousePositionXOffset) {
+                metric.data.forEach((metricInstance, metricInstanceIndex) => {
+                    var metricPoint = metricInstance.values[pointIndex];
+                    var value = metricPoint ? metricPoint[1] : 0
+                    this.focusAreaContext.fillStyle = this.getColorFromMap(value, colorMap);
+                    this.focusAreaContext.fillRect(instancePoint.x, this.overviewModel.data[metricInstanceIndex].y,
+                        this.config.overviewPointHeight, this.config.overviewPointHeight);
+                });
+            }
+        });
 
         if (index == instance.metricList.length - 1) {
             this.drawMultipleFocusArea(false);
-        }
-    }
-
-    getLinkerTargetInstance() {
-        for (var i = 0; i < this.overviewModel.data.length; ++i) {
-            var instance = this.overviewModel.data[i];
-
-            if (instance.y <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <= instance.y + this.config.overviewPointHeight) {
-                return instance;
-            }
         }
     }
 

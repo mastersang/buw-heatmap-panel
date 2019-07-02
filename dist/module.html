@@ -1,23 +1,36 @@
-<div style="width:100%; height:100%;overflow: auto">
+<div style="width: 100%; height: 100%;overflow: auto">
     <img ng-show="ctrl.isLoading" src="/public/img/loading.gif">
 
     <div ng-hide="ctrl.isLoading">
         <div style="width:100%; height:100%">
-            <select ng-model="ctrl.linkingMode" ng-change="selectLinker()">
-                <option value="xCross">X Cross</option>
-                <option value="normalCross">Normal cross</option>
-                <option value="changeColor">Change color</option>
-            </select>
+            <table>
+                <tr>
+                    <td>
+                        <select ng-model="ctrl.overviewMode" ng-change=selectOverviewMode()>
+                            <option value="1">Single</option>
+                            <option value="2">Multiple</option>
+                        </select>
+                    </td>
+
+                    <td style="padding-left: 10px">
+                        <select ng-show="ctrl.overviewMode == 2" ng-model="ctrl.linkingMode" ng-change="selectLinker()">
+                            <option value="xCross">X Cross</option>
+                            <option value="normalCross">Normal cross</option>
+                            <option value="changeColor">Change color</option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
 
             <div style="position:relative;margin-top: 10px">
-                <canvas id="overviewCanvas" style="position:absolute" width="{{ctrl.overviewWidth}}"
+                <canvas id="overviewCanvas" style="position: absolute;" width="{{ctrl.overviewWidth}}"
                     height="{{ctrl.overviewHeight}}"></canvas>
-                <canvas id="focusAreaCanvas" width="{{ctrl.overviewWidth}}" height="{{ctrl.overviewHeight}}"
-                    style="position:absolute" ng-mousemove="moveFocusArea($event)"
+                <canvas id="focusAreaCanvas" style="position: absolute" width="{{ctrl.overviewWidth}}"
+                    height="{{ctrl.overviewHeight}}" ng-mousemove="moveFocusArea($event)"
                     ng-click="fixFocusArea($event)"></canvas>
             </div>
 
-            <div style="position: relative;margin-top: {{ctrl.focusGraphMarginTop}}px;width:100%; height:100%">
+            <div style="position: relative; margin-top: {{ctrl.focusGraphMarginTop}}px; width: 100%; height: 100%">
                 <canvas id="focusGraphCanvas" width="10000" height="5000" style="position: absolute"
                     ng-click="selectNode()"></canvas>
             </div>
