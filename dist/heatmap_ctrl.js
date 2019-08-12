@@ -59,57 +59,120 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           key: "initialiseConfig",
           value: function initialiseConfig() {
             this.config = {
+              // color schemes for metrics
+              colors: [["f2d9e6", "d98cb3", "bf4080", "73264d"], // red
+              ["ccddff", "6699ff", "0055ff", "003399"], // blue
+              ["eeeedd", "cccc99", "aaaa55", "666633"]],
+              // determines which the order of attributes to use for sorting
+              sortOrder: [0, 1, 2],
               apiAddress: "http://localhost:3000/api/datasources/proxy/1/api/v1/query_range?query=",
-              instancePropertyName: "instance",
-              dateFormat: "DD-MM-YYYY HH:mm",
-              focusAreaColor: "Aqua",
-              focusAreaSize: 20,
-              colors: [["f2d9e6", "d98cb3", "bf4080", "73264d"], ["ccddff", "6699ff", "0055ff", "003399"], ["eeeedd", "cccc99", "aaaa55", "666633"]],
-              overviewPointWidth: 1,
-              overviewPointHeight: 1,
-              verticalMarginBetweenOverviewMetrics: 2,
-              horizontalMarginBetweenOverviewMetrics: 20,
+              marginBetweenOverviewAndFocus: 50
+            };
+            this.initialiseOverviewConfig();
+            this.initialiseFocusAreaConfig();
+            this.initialiseFocusGraphConfig();
+          }
+        }, {
+          key: "initialiseOverviewConfig",
+          value: function initialiseOverviewConfig() {
+            this.config.overview = {
+              pointWidth: 1,
+              groupedPointHeight: 5,
+              ungroupedPointHeight: 1,
+              verticalMarginalBetweenMetrics: 2,
+              horizontalMarginBetweenMetrics: 30,
               marginBetweenInstances: 6,
-              focusGraphLeftMargin: 40,
-              xCrossSize: 15,
-              marginBetweenOverviewAndFocus: 50,
+              startingGreyColor: 240,
+              groupBarWidth: 9
+            };
+          }
+        }, {
+          key: "initialiseFocusAreaConfig",
+          value: function initialiseFocusAreaConfig() {
+            this.config.focusArea = {
+              color: "Aqua",
+              size: 20,
+              xCrossSize: 15
+            };
+          }
+        }, {
+          key: "initialiseFocusGraphConfig",
+          value: function initialiseFocusGraphConfig() {
+            this.config.focusGraph = {
+              leftMargin: 40,
               fontSize: 15,
-              focusPointWidth: 5,
-              focusMetricMaxHeight: 30,
-              marginBetweenFocusMetrics: 10,
-              marginBetweenFocusInstances: 20
+              pointWidth: 5,
+              metricMaxHeight: 30,
+              marginBetweenMetrics: 10,
+              marginBetweenInstances: 20
             };
           }
         }, {
           key: "link",
           value: function link(scope, elem, attrs, ctrl) {
             this.scope = scope;
-            this.scope.ctrl.overviewMode = "1";
-            this.scope.ctrl.linkingMode = "xCross";
             this.elem = elem;
+            this.initialiseControl();
+            this.initialiseUIFunctions();
+            this.initialiseCanvases();
+          }
+        }, {
+          key: "initialiseControl",
+          value: function initialiseControl() {
+            this.scope.ctrl.enums = {
+              overviewMode: {
+                SEPARATED: "1",
+                INTEGRATED: "2"
+              },
+              linkingMode: {
+                X_CROSS: "1",
+                NORMAL_CROSS: "2",
+                CHANGE_COLOR: "3"
+              }
+            };
+            this.scope.ctrl.overviewMode = this.scope.ctrl.enums.overviewMode.SEPARATED;
+            this.scope.ctrl.linkingMode = this.scope.ctrl.enums.linkingMode.X_CROSS;
+            this.scope.ctrl.isGrouped = true;
+          }
+        }, {
+          key: "initialiseUIFunctions",
+          value: function initialiseUIFunctions() {
             var parent = this;
 
-            scope.selectOverviewMode = function () {
+            this.scope.selectOverviewMode = function () {
               parent.selectOverviewMode();
             };
 
-            scope.selectLinker = function () {
+            this.scope.selectLinker = function () {
               parent.selectLinker();
             };
 
-            scope.moveFocusArea = function (evt) {
+            this.scope.groupUngroup = function () {
+              parent.groupUngroup();
+            };
+
+            this.scope.moveFocusArea = function (evt) {
               parent.moveFocusArea.bind(parent, evt)();
             };
 
-            scope.fixFocusArea = function (evt) {
+            this.scope.fixFocusArea = function (evt) {
               parent.fixFocusArea.bind(parent, evt)();
             };
 
-            scope.selectNode = function () {
+            this.scope.selectNode = function () {
               parent.selectNode.bind(parent)();
             };
-
-            this.initialiseCanvases();
+          }
+        }, {
+          key: "initialiseCanvases",
+          value: function initialiseCanvases() {
+            this.overviewCanvas = this.elem.find("#overviewCanvas")[0];
+            this.overviewContext = this.overviewCanvas.getContext("2d");
+            this.focusAreaCanvas = this.elem.find("#focusAreaCanvas")[0];
+            this.focusAreaContext = this.focusAreaCanvas.getContext("2d");
+            this.focusGraphCanvas = this.elem.find("#focusGraphCanvas")[0];
+            this.focusGraphContext = this.focusGraphCanvas.getContext("2d");
+            this.focusGraphContext.font = this.config.focusGraph.fontSize + "px arial";
           }
         }, {
           key: "onDataReceived",
@@ -135,8 +198,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
 
                 _this2.overviewModel.metricList = [null, null, null];
                 _this2.loadCount = 0;
-                _this2.fromDate = Math.round(_this2.timeSrv.timeRange().from._d.getTime() / 1000);
-                _this2.toDate = Math.round(_this2.timeSrv.timeRange().to._d.getTime() / 1000);
+                _this2.fromDate = _this2.getDateInSeconds(_this2.timeSrv.timeRange().from._d);
+                _this2.toDate = _this2.getDateInSeconds(_this2.timeSrv.timeRange().to._d);
 
                 _this2.getDataFromAPI("node_load1{job='node'}", 0);
 
@@ -149,6 +212,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             }, 100);
           }
         }, {
+          key: "getDateInSeconds",
+          value: function getDateInSeconds(date) {
+            return Math.round(date.getTime() / 1000);
+          }
+        }, {
           key: "getDataFromAPI",
           value: function getDataFromAPI(metric, index) {
             var _this3 = this;
@@ -156,6 +224,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             var xmlHttp = new XMLHttpRequest();
 
             xmlHttp.onreadystatechange = function () {
+              // received response
               if (xmlHttp.readyState == 4) {
                 ++_this3.loadCount;
 
@@ -167,7 +236,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               }
             };
 
-            var url = this.config.apiAddress + encodeURIComponent(metric) + "&start=" + this.fromDate + "&end=" + this.toDate + "&step=15";
+            var url = this.config.apiAddress + encodeURIComponent(metric) + "&start=" + this.fromDate + "&end=" + this.toDate + "&step=60";
             xmlHttp.open("GET", url, true);
             xmlHttp.send(null);
           }
@@ -185,11 +254,13 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
                 if (!_this4.overviewModel.metricList.includes(null)) {
                   _this4.convertDataToFloat();
 
-                  _this4.initialiseMetricMinMax();
+                  _this4.initialiseMetricMinMaxTotal();
 
                   _this4.initialiseColorMap();
 
                   _this4.initiliseOverviewData();
+
+                  _this4.initialiseOverviewGroups();
 
                   _this4.renderOverview();
                 }
@@ -209,8 +280,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             });
           }
         }, {
-          key: "initialiseMetricMinMax",
-          value: function initialiseMetricMinMax() {
+          key: "initialiseMetricMinMaxTotal",
+          value: function initialiseMetricMinMaxTotal() {
             var _this5 = this;
 
             this.overviewModel.metricList.forEach(function (metric) {
@@ -248,7 +319,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
 
             this.overviewModel.metricList.forEach(function (metric, index) {
               var colors = _this6.config.colors[index];
-              metric.layerRange = metric.max / (colors.length - 0.5);
+              metric.layerRange = metric.max / colors.length; // map a range of values to a color
+
               metric.colorMap = _this6.getColorMap(metric, colors);
             });
           }
@@ -261,6 +333,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               var threshold = {};
               threshold.min = i * metric.layerRange;
               threshold.max = threshold.min + metric.layerRange;
+              threshold.average = (threshold.max + threshold.min) / 2;
               colorMap.set(threshold, colors[i]);
             }
 
@@ -269,10 +342,17 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "initiliseOverviewData",
           value: function initiliseOverviewData() {
+            this.overviewModel.data = [];
+            this.populateOverviewData();
+            this.calculateInstanceMetricTotalMinMax();
+            this.sortOverviewData();
+          }
+        }, {
+          key: "populateOverviewData",
+          value: function populateOverviewData() {
             var _this7 = this;
 
-            this.overviewModel.data = [];
-            this.overviewModel.metricList.forEach(function (metric, index) {
+            this.overviewModel.metricList.forEach(function (metric, metricIndex) {
               metric.data.forEach(function (metricInstance) {
                 var newInstance = _.find(_this7.overviewModel.data, function (search) {
                   return metricInstance.metric.instance == search.instance;
@@ -286,7 +366,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
                   var point = {};
                   point.date = value[0];
                   point.value = value[1];
-                  newInstance.metricList[index].push(point);
+                  newInstance.metricList[metricIndex].data.push(point);
                 });
               });
             });
@@ -296,15 +376,118 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           value: function initaliseNewInstance(metricInstance) {
             var newInstance = {};
             newInstance.instance = metricInstance.metric.instance;
-            newInstance.metricList = [[], [], []];
+            newInstance.metricList = [];
+
+            for (var i = 0; i < this.config.colors.length; ++i) {
+              var metric = {};
+              metric.data = [];
+              newInstance.metricList.push(metric);
+            }
+
             this.overviewModel.data.push(newInstance);
             return newInstance;
+          }
+        }, {
+          key: "calculateInstanceMetricTotalMinMax",
+          value: function calculateInstanceMetricTotalMinMax() {
+            var _this8 = this;
+
+            this.overviewModel.data.forEach(function (instance) {
+              instance.metricList.forEach(function (metric, metricIndex) {
+                metric.total = 0;
+                metric.min = -1;
+                metric.max = -1;
+                metric.data.forEach(function (point) {
+                  // sum the "threshold" average of each data point instead of the actual value of the data point 
+                  metric.total += _this8.getThresholdAverage(point.value, _this8.overviewModel.metricList[metricIndex].colorMap);
+
+                  if (metric.min == -1 || point.value < metric.min) {
+                    metric.min = point.value;
+                  }
+
+                  if (metric.max == -1 || point.value > metric.max) {
+                    metric.max = point.value;
+                  }
+                });
+              });
+            });
+          }
+        }, {
+          key: "getThresholdAverage",
+          value: function getThresholdAverage(value, map) {
+            var result;
+            map.forEach(function (color, threshold) {
+              if (threshold.min <= value && value <= threshold.max) {
+                result = threshold.average;
+              }
+            });
+            return result;
+          }
+        }, {
+          key: "sortOverviewData",
+          value: function sortOverviewData() {
+            var _this9 = this;
+
+            this.overviewModel.data.sort(function (first, second) {
+              for (var i = 0; i < _this9.config.sortOrder.length; ++i) {
+                var metricIndex = _this9.config.sortOrder[i];
+
+                if (first.metricList[metricIndex].total != second.metricList[metricIndex].total) {
+                  return first.metricList[metricIndex].total - second.metricList[metricIndex].total;
+                }
+              }
+
+              return 0;
+            });
+          }
+        }, {
+          key: "initialiseOverviewGroups",
+          value: function initialiseOverviewGroups() {
+            var _this10 = this;
+
+            this.overviewModel.groupList = [];
+            this.overviewModel.data.forEach(function (instance) {
+              var group = _.find(_this10.overviewModel.groupList, function (search) {
+                return _this10.checkInstanceInGroup(instance, search);
+              });
+
+              if (!group) {
+                group = _this10.initialiseNewGroup(instance);
+
+                _this10.overviewModel.groupList.push(group);
+              }
+
+              group.instanceList.push(instance);
+            });
+          }
+        }, {
+          key: "checkInstanceInGroup",
+          value: function checkInstanceInGroup(instance, group) {
+            for (var i = 0; i < instance.metricList.length; ++i) {
+              if (instance.metricList[i].total != group.metricList[i].total) {
+                return false;
+              }
+            }
+
+            return true;
+          }
+        }, {
+          key: "initialiseNewGroup",
+          value: function initialiseNewGroup(instance) {
+            var group = {};
+            group.metricList = [];
+            group.instanceList = [];
+            instance.metricList.forEach(function (instanceMetric) {
+              var groupMetric = {};
+              groupMetric.total = instanceMetric.total;
+              group.metricList.push(groupMetric);
+            });
+            return group;
           }
         }, {
           key: "renderOverview",
           value: function renderOverview() {
             if (this.overviewModel.data.length > 0) {
-              this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
               this.clearFocus();
               this.drawOverviewData();
             }
@@ -320,19 +503,26 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "drawOverviewDataWrapper",
           value: function drawOverviewDataWrapper() {
+            this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
             var length = this.getInstanceHorizontalLength();
 
-            if (this.scope.ctrl.overviewMode == "1") {
-              this.overviewModel.overviewInstantHeight = this.config.overviewPointHeight * this.overviewModel.metricList.length + this.config.verticalMarginBetweenOverviewMetrics * (this.overviewModel.metricList.length - 1) + this.config.marginBetweenInstances;
-              this.scope.ctrl.overviewWidth = length * this.config.overviewPointWidth;
-              this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.overviewModel.overviewInstantHeight;
+            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
+              this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
+
+              if (this.scope.ctrl.isGrouped) {
+                this.scope.ctrl.overviewHeight = this.overviewModel.groupList.length * this.config.overview.groupedPointHeight;
+              } else {
+                this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.config.overview.ungroupedPointHeight;
+              }
+
               this.scope.$apply();
-              this.drawSingleOverview();
+              this.drawSeparated();
             } else {
-              this.scope.ctrl.overviewWidth = length * this.config.overviewPointWidth;
-              this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.config.overviewPointHeight;
+              this.overviewModel.overviewInstanceHeight = this.config.overview.ungroupedPointHeight * this.overviewModel.metricList.length + this.config.overview.verticalMarginalBetweenMetrics * (this.overviewModel.metricList.length - 1) + this.config.overview.marginBetweenInstances;
+              this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
+              this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.overviewModel.overviewInstanceHeight;
               this.scope.$apply();
-              this.drawMultipleOverview();
+              this.drawIntengrated();
             }
 
             ;
@@ -341,71 +531,43 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "getInstanceHorizontalLength",
           value: function getInstanceHorizontalLength() {
-            var _this8 = this;
+            var length = this.getMaxMetricLength();
 
-            var firstInstance = this.overviewModel.data[0];
+            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
+              return length * this.overviewModel.metricList.length + (this.overviewModel.metricList.length - 1) * this.config.overview.horizontalMarginBetweenMetrics;
+            } else {
+              return length;
+            }
+          }
+        }, {
+          key: "getMaxMetricLength",
+          value: function getMaxMetricLength() {
             var length = 0;
-            firstInstance.metricList.forEach(function (metric, index) {
-              if (_this8.scope.ctrl.overviewMode == "1") {
-                if (metric.length > length) {
-                  length = metric.length;
+            this.overviewModel.metricList.forEach(function (metric) {
+              metric.data.forEach(function (point) {
+                if (point.values.length > length) {
+                  length = point.values.length;
                 }
-              } else {
-                length += metric.length;
-
-                if (index > 0) {
-                  length += _this8.config.horizontalMarginBetweenOverviewMetrics;
-                }
-              }
+              });
             });
             return length;
           }
         }, {
-          key: "drawSingleOverview",
-          value: function drawSingleOverview() {
-            var _this9 = this;
+          key: "drawIntengrated",
+          value: function drawIntengrated() {
+            var _this11 = this;
 
             this.overviewModel.data.forEach(function (instance, instanceIndex) {
-              instance.y = instanceIndex * _this9.overviewModel.overviewInstantHeight;
+              instance.y = instanceIndex * _this11.overviewModel.overviewInstanceHeight;
               instance.metricList.forEach(function (metric, metricIndex) {
-                metric.forEach(function (point, pointIndex) {
-                  point.x = pointIndex * _this9.config.overviewPointWidth;
-                  point.color = _this9.getColorFromMap(point.value, _this9.overviewModel.metricList[metricIndex].colorMap);
-                  _this9.overviewContext.fillStyle = point.color;
-                  var y = instance.y + metricIndex * _this9.config.overviewPointHeight * _this9.config.verticalMarginBetweenOverviewMetrics;
+                metric.data.forEach(function (point, pointIndex) {
+                  point.x = pointIndex * _this11.config.overview.pointWidth;
+                  point.color = _this11.getColorFromMap(point.value, _this11.overviewModel.metricList[metricIndex].colorMap);
+                  _this11.overviewContext.fillStyle = point.color;
+                  var y = instance.y + metricIndex * _this11.config.overview.ungroupedPointHeight * _this11.config.overview.verticalMarginalBetweenMetrics;
 
-                  _this9.overviewContext.fillRect(point.x, y, _this9.config.overviewPointHeight, _this9.config.overviewPointHeight);
+                  _this11.overviewContext.fillRect(point.x, y, _this11.config.overview.ungroupedPointHeight, _this11.config.overview.ungroupedPointHeight);
                 });
-              });
-            });
-          }
-        }, {
-          key: "drawMultipleOverview",
-          value: function drawMultipleOverview() {
-            var _this10 = this;
-
-            this.overviewModel.overviewInstantHeight = this.config.overviewPointHeight;
-            this.overviewModel.data.forEach(function (instance, instanceIndex) {
-              var endX = 0;
-              instance.metricList.forEach(function (metric, metricIndex) {
-                instance.y = instanceIndex * _this10.config.overviewPointHeight;
-                var overviewMetric = _this10.overviewModel.metricList[metricIndex];
-                overviewMetric.startX = endX;
-
-                if (metricIndex > 0) {
-                  overviewMetric.startX += _this10.config.horizontalMarginBetweenOverviewMetrics;
-                }
-
-                metric.forEach(function (point, pointIndex) {
-                  point.x = overviewMetric.startX + pointIndex * _this10.config.overviewPointWidth;
-                  point.color = _this10.getColorFromMap(point.value, _this10.overviewModel.metricList[metricIndex].colorMap);
-                  _this10.overviewContext.fillStyle = point.color;
-
-                  _this10.overviewContext.fillRect(point.x, instance.y, _this10.config.overviewPointHeight, _this10.config.overviewPointHeight);
-
-                  endX = point.x;
-                });
-                overviewMetric.endX = endX;
               });
             });
           }
@@ -421,15 +583,89 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             return "#" + result;
           }
         }, {
-          key: "initialiseCanvases",
-          value: function initialiseCanvases() {
-            this.overviewCanvas = this.elem.find("#overviewCanvas")[0];
-            this.overviewContext = this.overviewCanvas.getContext("2d");
-            this.focusAreaCanvas = this.elem.find("#focusAreaCanvas")[0];
-            this.focusAreaContext = this.focusAreaCanvas.getContext("2d");
-            this.focusGraphCanvas = this.elem.find("#focusGraphCanvas")[0];
-            this.focusGraphContext = this.focusGraphCanvas.getContext("2d");
-            this.focusGraphContext.font = this.config.fontSize + "px arial";
+          key: "drawSeparated",
+          value: function drawSeparated() {
+            this.overviewModel.metricWidth = this.getMaxMetricLength() * this.config.overview.pointWidth;
+
+            if (this.scope.ctrl.isGrouped) {
+              this.drawGrouped();
+            } else {
+              this.drawUngrouped();
+            }
+          }
+        }, {
+          key: "drawGrouped",
+          value: function drawGrouped() {
+            var _this12 = this;
+
+            this.overviewModel.overviewInstanceHeight = this.config.overview.groupedPointHeight;
+            this.overviewModel.groupList.forEach(function (group, groupIndex) {
+              var instance = group.instanceList[0];
+
+              _this12.drawOverviewInstance(instance, groupIndex, _this12.config.overview.groupedPointHeight);
+            });
+          }
+        }, {
+          key: "drawOverviewInstance",
+          value: function drawOverviewInstance(instance, index, pointHeigh) {
+            var _this13 = this;
+
+            instance.metricList.forEach(function (metric, metricIndex) {
+              instance.y = index * pointHeigh;
+              var overviewMetric = _this13.overviewModel.metricList[metricIndex];
+              overviewMetric.startX = _this13.overviewModel.metricWidth * metricIndex;
+
+              if (metricIndex > 0) {
+                overviewMetric.startX += _this13.config.overview.horizontalMarginBetweenMetrics * metricIndex;
+              }
+
+              metric.data.forEach(function (point, pointIndex) {
+                point.x = overviewMetric.startX + pointIndex * _this13.config.overview.pointWidth;
+                point.color = _this13.getColorFromMap(point.value, _this13.overviewModel.metricList[metricIndex].colorMap);
+                _this13.overviewContext.fillStyle = point.color;
+
+                _this13.overviewContext.fillRect(point.x, instance.y, _this13.config.overview.pointWidth, pointHeigh);
+              });
+              overviewMetric.endX = overviewMetric.startX + _this13.overviewModel.metricWidth;
+            });
+          }
+        }, {
+          key: "drawUngrouped",
+          value: function drawUngrouped() {
+            var _this14 = this;
+
+            this.overviewModel.overviewInstanceHeight = this.config.overview.ungroupedPointHeight;
+            this.overviewModel.data.forEach(function (instance, instanceIndex) {
+              _this14.drawOverviewInstance(instance, instanceIndex, _this14.config.overview.ungroupedPointHeight);
+            });
+            this.drawGroupBars();
+          }
+        }, {
+          key: "drawGroupBars",
+          value: function drawGroupBars() {
+            var colorStep = this.config.overview.startingGreyColor / this.overviewModel.groupList.length;
+
+            for (var i = 1; i < this.overviewModel.metricList.length; ++i) {
+              var x = this.overviewModel.metricList[i].startX - this.config.overview.horizontalMarginBetweenMetrics / 2;
+              this.drawGroupBarAtPosition(x, colorStep);
+            }
+          }
+        }, {
+          key: "drawGroupBarAtPosition",
+          value: function drawGroupBarAtPosition(x, colorStep) {
+            var _this15 = this;
+
+            var y = 0;
+            this.overviewModel.groupList.forEach(function (group, groupIndex) {
+              var greyValue = Math.round(_this15.config.overview.startingGreyColor - colorStep * groupIndex);
+              var fillStyle = "rgba(" + greyValue + ", " + greyValue + ", " + greyValue + ", 1)";
+              _this15.overviewContext.fillStyle = fillStyle;
+              var height = group.instanceList.length * _this15.config.overview.ungroupedPointHeight;
+
+              _this15.overviewContext.fillRect(x - Math.floor(_this15.config.overview.groupBarWidth / 2), y, _this15.config.overview.groupBarWidth, height);
+
+              y += height;
+            });
           }
         }, {
           key: "selectOverviewMode",
@@ -440,6 +676,12 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           key: "selectLinker",
           value: function selectLinker() {
             this.drawFocusArea();
+          }
+        }, {
+          key: "groupUngroup",
+          value: function groupUngroup() {
+            this.scope.ctrl.isGrouped = !this.scope.ctrl.isGrouped;
+            this.drawOverviewData();
           }
         }, {
           key: "moveFocusArea",
@@ -464,7 +706,15 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           value: function drawFocus(evt) {
             this.focusModel.mousePosition = this.getMousePos(evt, this.overviewCanvas);
             this.drawFocusArea();
-            this.drawFocusGraph();
+
+            for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
+              var metric = this.overviewModel.metricList[i]; // only update focus graph if mouse is pointing on one of metric overview graphs
+
+              if (metric.startX <= this.focusModel.mousePosition.x && this.focusModel.mousePosition.x <= metric.endX) {
+                this.drawFocusGraph();
+                break;
+              }
+            }
           }
         }, {
           key: "clearFocus",
@@ -489,17 +739,17 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               var size = this.getFocusAreaSize();
               this.focusModel.focusStartY = Math.min(Math.max(0, this.focusModel.mousePosition.y - size / 2), this.overviewCanvas.height - size);
 
-              if (this.scope.ctrl.overviewMode == "1") {
-                this.drawSingleFocusArea();
-              } else {
+              if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
                 this.drawMultipleFocusArea(true);
+              } else {
+                this.drawSingleFocusArea();
               }
             }
           }
         }, {
           key: "getFocusAreaSize",
           value: function getFocusAreaSize() {
-            return this.config.focusAreaSize * 2;
+            return this.config.focusArea.size * 2;
           }
         }, {
           key: "drawSingleFocusArea",
@@ -507,14 +757,14 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             this.clearFocus();
             var size = this.getFocusAreaSize();
             this.focusModel.focusStartY = Math.min(Math.max(0, this.focusModel.mousePosition.y - size / 2), this.overviewCanvas.height - this.getFocusAreaSize());
-            this.focusModel.focusStartX = Math.min(Math.max(0, this.focusModel.mousePosition.x - this.config.focusAreaSize), this.overviewCanvas.width - size);
-            this.focusAreaContext.strokeStyle = this.config.focusAreaColor;
+            this.focusModel.focusStartX = Math.min(Math.max(0, this.focusModel.mousePosition.x - this.config.focusArea.size), this.overviewCanvas.width - size);
+            this.focusAreaContext.strokeStyle = this.config.focusArea.color;
             this.focusAreaContext.strokeRect(this.focusModel.focusStartX, this.focusModel.focusStartY, size, size);
           }
         }, {
           key: "drawMultipleFocusArea",
           value: function drawMultipleFocusArea(doDrawLinkers) {
-            var _this11 = this;
+            var _this16 = this;
 
             var size = this.getFocusAreaSize();
             var offset = this.getFocusAreaOffset();
@@ -524,11 +774,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
                 this.clearFocus();
               }
 
-              this.focusAreaContext.strokeStyle = this.config.focusAreaColor;
+              this.focusAreaContext.strokeStyle = this.config.focusArea.color;
               this.overviewModel.metricList.forEach(function (metric) {
                 metric.focusStartX = metric.startX + offset;
 
-                _this11.focusAreaContext.strokeRect(metric.focusStartX, _this11.focusModel.focusStartY, size, size);
+                _this16.focusAreaContext.strokeRect(metric.focusStartX, _this16.focusModel.focusStartY, size, size);
               });
 
               if (doDrawLinkers) {
@@ -545,7 +795,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               if (this.checkMouseIsInMetric(metric)) {
                 this.focusModel.mousePositionXOffset = this.focusModel.mousePosition.x - metric.startX;
                 this.focusModel.sourceMetricIndex = i;
-                return Math.min(Math.max(metric.startX, this.focusModel.mousePosition.x - this.config.focusAreaSize), metric.endX - this.getFocusAreaSize()) - metric.startX;
+                return Math.min(Math.max(metric.startX, this.focusModel.mousePosition.x - this.config.focusArea.size), metric.endX - this.getFocusAreaSize()) - metric.startX;
               }
             }
           }
@@ -557,7 +807,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "drawLinkers",
           value: function drawLinkers() {
-            var _this12 = this;
+            var _this17 = this;
 
             var pixelData = this.overviewContext.getImageData(this.focusModel.mousePosition.x, this.focusModel.mousePosition.y, 1, 1).data;
             this.focusAreaContext.strokeStyle = "rgb(" + pixelData[0] + "," + pixelData[1] + "," + pixelData[2] + ")";
@@ -565,8 +815,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
 
             if (instance) {
               this.overviewModel.metricList.forEach(function (metric, index) {
-                if (!_this12.checkMouseIsInMetric(metric)) {
-                  _this12.drawLinkerByMode(metric, instance, index);
+                if (!_this17.checkMouseIsInMetric(metric)) {
+                  _this17.drawLinkersByMode(metric, instance, index);
                 }
               });
             }
@@ -577,24 +827,24 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             for (var i = 0; i < this.overviewModel.data.length; ++i) {
               var instance = this.overviewModel.data[i];
 
-              if (instance.y <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <= instance.y + this.config.overviewPointHeight) {
+              if (instance.y <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <= instance.y + this.config.overview.ungroupedPointHeight) {
                 return instance;
               }
             }
           }
         }, {
-          key: "drawLinkerByMode",
-          value: function drawLinkerByMode(metric, instance, index) {
+          key: "drawLinkersByMode",
+          value: function drawLinkersByMode(metric, instance, index) {
             switch (this.scope.ctrl.linkingMode) {
-              case "xCross":
+              case this.scope.ctrl.enums.linkingMode.X_CROSS:
                 this.drawXCross(metric, instance);
                 break;
 
-              case "normalCross":
+              case this.scope.ctrl.enums.linkingMode.NORMAL_CROSS:
                 this.drawNormalCross(metric, instance);
                 break;
 
-              case "changeColor":
+              case this.scope.ctrl.enums.linkingMode.CHANGE_COLOR:
                 this.changeInstanceColor(metric, instance, index);
                 break;
 
@@ -606,18 +856,18 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           key: "drawXCross",
           value: function drawXCross(metric, instance) {
             var centerX = metric.startX + this.focusModel.mousePositionXOffset;
-            var leftBeginX = centerX - this.config.xCrossSize;
-            var rightBeginX = centerX + this.config.overviewPointWidth;
-            var bottomInstance = instance.y + this.config.overviewPointHeight;
-            this.drawXCrossLine(leftBeginX, instance.y - this.config.xCrossSize, instance.y);
-            this.drawXCrossLine(rightBeginX, instance.y, instance.y - this.config.xCrossSize);
-            this.drawXCrossLine(leftBeginX, bottomInstance + this.config.xCrossSize, bottomInstance);
-            this.drawXCrossLine(rightBeginX, bottomInstance, bottomInstance + this.config.xCrossSize);
+            var leftBeginX = centerX - this.config.focusArea.xCrossSize;
+            var rightBeginX = centerX + this.config.overview.pointWidth;
+            var bottomInstance = instance.y + this.config.overview.ungroupedPointHeight;
+            this.drawXCrossLine(leftBeginX, instance.y - this.config.focusArea.xCrossSize, instance.y);
+            this.drawXCrossLine(rightBeginX, instance.y, instance.y - this.config.focusArea.xCrossSize);
+            this.drawXCrossLine(leftBeginX, bottomInstance + this.config.focusArea.xCrossSize, bottomInstance);
+            this.drawXCrossLine(rightBeginX, bottomInstance, bottomInstance + this.config.focusArea.xCrossSize);
           }
         }, {
           key: "drawXCrossLine",
           value: function drawXCrossLine(startX, startY, endY) {
-            this.drawLineOnFocusAreaCanvas(startX, startY, startX + this.config.xCrossSize, endY);
+            this.drawLineOnFocusAreaCanvas(startX, startY, startX + this.config.focusArea.xCrossSize, endY);
           }
         }, {
           key: "drawLineOnFocusAreaCanvas",
@@ -634,7 +884,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             var focusSize = this.getFocusAreaSize();
             var centertX = metric.startX + this.focusModel.mousePositionXOffset;
             var endX = metric.focusStartX + focusSize;
-            var distanceBetweenLines = this.config.overviewPointWidth * 2;
+            var distanceBetweenLines = this.config.overview.pointWidth * 2;
             var leftLineX = centertX - distanceBetweenLines;
             var rightLineX = centertX + distanceBetweenLines;
             var topLineY = instance.y - distanceBetweenLines;
@@ -661,26 +911,27 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "changeInstanceColor",
           value: function changeInstanceColor(metric, instance, index) {
-            var _this13 = this;
+            var _this18 = this;
 
             if (index == 0) {
               this.clearFocus();
             }
 
-            instance.metricList[index].forEach(function (instancePoint, pointIndex) {
-              var colorMap = _this13.getColorMap(metric, _this13.config.colors[_this13.focusModel.sourceMetricIndex]);
+            instance.metricList[index].data.forEach(function (instancePoint, pointIndex) {
+              var colorMap = _this18.getColorMap(metric, _this18.config.colors[_this18.focusModel.sourceMetricIndex]);
 
-              _this13.focusAreaContext.fillStyle = _this13.getColorFromMap(instancePoint.value, colorMap);
+              _this18.focusAreaContext.fillStyle = _this18.getColorFromMap(instancePoint.value, colorMap);
 
-              _this13.focusAreaContext.fillRect(instancePoint.x, instance.y, _this13.config.overviewPointHeight, _this13.config.overviewPointHeight);
+              _this18.focusAreaContext.fillRect(instancePoint.x, instance.y, _this18.overviewModel.overviewInstanceHeight, _this18.overviewModel.overviewInstanceHeight);
 
-              if (instancePoint.x == metric.startX + _this13.focusModel.mousePositionXOffset) {
+              if (instancePoint.x == metric.startX + _this18.focusModel.mousePositionXOffset) {
+                // vertical line
                 metric.data.forEach(function (metricInstance, metricInstanceIndex) {
                   var metricPoint = metricInstance.values[pointIndex];
                   var value = metricPoint ? metricPoint[1] : 0;
-                  _this13.focusAreaContext.fillStyle = _this13.getColorFromMap(value, colorMap);
+                  _this18.focusAreaContext.fillStyle = _this18.getColorFromMap(value, colorMap);
 
-                  _this13.focusAreaContext.fillRect(instancePoint.x, _this13.overviewModel.data[metricInstanceIndex].y, _this13.config.overviewPointHeight, _this13.config.overviewPointHeight);
+                  _this18.focusAreaContext.fillRect(instancePoint.x, _this18.overviewModel.data[metricInstanceIndex].y, _this18.overviewModel.overviewInstanceHeight, _this18.overviewModel.overviewInstanceHeight);
                 });
               }
             });
@@ -699,37 +950,42 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "initialiseFocusGraphData",
           value: function initialiseFocusGraphData() {
-            var _this14 = this;
+            var _this19 = this;
 
             this.focusModel.data = [];
-            this.overviewModel.data.forEach(function (overviewInstance) {
-              if (overviewInstance.y <= _this14.focusModel.focusStartY + _this14.getFocusAreaSize() && overviewInstance.y + _this14.overviewModel.overviewInstantHeight >= _this14.focusModel.focusStartY) {
-                var modalInstance = {};
-                modalInstance.instance = overviewInstance.instance;
-                modalInstance.metricList = [];
 
-                _this14.addFocusMetrics(modalInstance, overviewInstance, _this14.getIndexesOfPointsInFocus(overviewInstance));
+            if (this.scope.ctrl.isGrouped) {
+              this.overviewModel.groupList.forEach(function (group) {
+                var firstInstance = group.instanceList[0];
 
-                _this14.initialiseInstanceLayers(modalInstance);
-
-                _this14.focusModel.data.push(modalInstance);
-              }
-            });
+                if (_this19.checkInstanceInFocus(firstInstance)) {
+                  group.instanceList.forEach(function (instance) {
+                    _this19.initialiseFocusInstance(instance, _this19.getIndexesOfPointsInFocus(firstInstance));
+                  });
+                }
+              });
+            } else {
+              this.overviewModel.data.forEach(function (instance) {
+                if (_this19.checkInstanceInFocus(instance)) {
+                  _this19.initialiseFocusInstance(instance, _this19.getIndexesOfPointsInFocus(instance));
+                }
+              });
+            }
           }
         }, {
           key: "getIndexesOfPointsInFocus",
           value: function getIndexesOfPointsInFocus(instance) {
-            var _this15 = this;
+            var _this20 = this;
 
             var indexes = [];
 
             for (var i = 0; i < instance.metricList.length; ++i) {
               var metric = instance.metricList[i];
 
-              if (metric.length > 0) {
+              if (metric.data.length > 0) {
                 var overviewMetric = this.overviewModel.metricList[i];
-                metric.forEach(function (point, index) {
-                  if (overviewMetric.focusStartX <= point.x && point.x <= overviewMetric.focusStartX + _this15.getFocusAreaSize()) {
+                metric.data.forEach(function (point, index) {
+                  if (overviewMetric.focusStartX <= point.x && point.x <= overviewMetric.focusStartX + _this20.getFocusAreaSize()) {
                     indexes.push(index);
                   }
                 });
@@ -740,29 +996,44 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             return indexes;
           }
         }, {
+          key: "checkInstanceInFocus",
+          value: function checkInstanceInFocus(instance) {
+            return instance.y <= this.focusModel.focusStartY + this.getFocusAreaSize() && instance.y + this.overviewModel.overviewInstanceHeight >= this.focusModel.focusStartY;
+          }
+        }, {
+          key: "initialiseFocusInstance",
+          value: function initialiseFocusInstance(overviewInstance, indexList) {
+            var focusInstance = {};
+            focusInstance.instance = overviewInstance.instance;
+            focusInstance.metricList = [];
+            this.addFocusMetrics(focusInstance, overviewInstance, indexList);
+            this.initialiseInstanceLayers(focusInstance);
+            this.focusModel.data.push(focusInstance);
+          }
+        }, {
           key: "addFocusMetrics",
-          value: function addFocusMetrics(modalInstance, overviewInstance, indexes) {
+          value: function addFocusMetrics(focusInstance, overviewInstance, indexList) {
             this.overviewModel.metricList.forEach(function (metric, metricIndex) {
               var focusMetric = {};
               focusMetric.data = [];
               focusMetric.layerList = [];
-              indexes.forEach(function (index) {
-                var point = overviewInstance.metricList[metricIndex][index];
+              indexList.forEach(function (index) {
+                var point = overviewInstance.metricList[metricIndex].data[index];
 
                 if (point) {
                   focusMetric.data.push(point);
                 }
               });
-              modalInstance.metricList.push(focusMetric);
+              focusInstance.metricList.push(focusMetric);
             });
           }
         }, {
           key: "initialiseInstanceLayers",
           value: function initialiseInstanceLayers(instance) {
-            var _this16 = this;
+            var _this21 = this;
 
             instance.metricList.forEach(function (metric, index) {
-              _this16.config.colors.forEach(function () {
+              _this21.config.colors.forEach(function () {
                 var layer = {};
                 layer.valueList = [];
                 metric.layerList.push(layer);
@@ -772,7 +1043,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
                 var value = point.value;
                 metric.layerList.forEach(function (layer) {
                   layer.valueList.push(value > 0 ? value : 0);
-                  value -= _this16.overviewModel.metricList[index].layerRange;
+                  value -= _this21.overviewModel.metricList[index].layerRange;
                 });
               });
             });
@@ -780,16 +1051,16 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "drawFocusGraphLabels",
           value: function drawFocusGraphLabels() {
-            var _this17 = this;
+            var _this22 = this;
 
             this.focusModel.horizontalX = 0;
             this.focusGraphContext.setLineDash([10, 10]);
             this.focusGraphContext.fillStyle = "black";
-            this.focusModel.instanceHeight = this.config.focusMetricMaxHeight * this.overviewModel.metricList.length + this.config.marginBetweenFocusMetrics * (this.overviewModel.metricList.length - 1) + this.config.marginBetweenFocusInstances;
+            this.focusModel.instanceHeight = this.config.focusGraph.metricMaxHeight * this.overviewModel.metricList.length + this.config.focusGraph.marginBetweenMetrics * (this.overviewModel.metricList.length - 1) + this.config.focusGraph.marginBetweenInstances;
             this.focusModel.data.forEach(function (instance, index) {
-              _this17.drawFocusGraphLabelByInstance(instance, index);
+              _this22.drawFocusGraphLabelByInstance(instance, index);
             });
-            this.focusModel.horizontalX += this.config.focusGraphLeftMargin;
+            this.focusModel.horizontalX += this.config.focusGraph.leftMargin;
           }
         }, {
           key: "drawFocusGraphLabelByInstance",
@@ -811,7 +1082,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "drawSeperator",
           value: function drawSeperator(instance) {
-            var lineY = instance.y - this.config.marginBetweenFocusInstances / 2;
+            var lineY = instance.y - this.config.focusGraph.marginBetweenInstances / 2;
             this.focusGraphContext.beginPath();
             this.focusGraphContext.moveTo(0, lineY);
             this.focusGraphContext.lineTo(10000, lineY);
@@ -820,38 +1091,38 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "drawFocusGraphData",
           value: function drawFocusGraphData() {
-            var _this18 = this;
+            var _this23 = this;
 
             this.focusModel.data.forEach(function (instance) {
               instance.metricList.forEach(function (metric, metricIndex) {
                 metric.layerList.forEach(function (layer, layerIndex) {
-                  var y = instance.y + (_this18.config.focusMetricMaxHeight + _this18.config.marginBetweenFocusMetrics) * metricIndex + _this18.config.focusMetricMaxHeight;
+                  var y = instance.y + (_this23.config.focusGraph.metricMaxHeight + _this23.config.focusGraph.marginBetweenMetrics) * metricIndex + _this23.config.focusGraph.metricMaxHeight;
 
-                  _this18.focusGraphContext.beginPath();
+                  _this23.focusGraphContext.beginPath();
 
-                  _this18.focusGraphContext.moveTo(_this18.focusModel.horizontalX, y);
+                  _this23.focusGraphContext.moveTo(_this23.focusModel.horizontalX, y);
 
-                  var x = _this18.focusModel.horizontalX;
+                  var x = _this23.focusModel.horizontalX;
                   var previousX = x;
                   var previousValue = 0;
                   layer.valueList.forEach(function (value, valueIndex) {
-                    x += valueIndex * _this18.config.focusPointWidth;
+                    x += valueIndex * _this23.config.focusGraph.pointWidth;
 
-                    _this18.moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, _this18.overviewModel.metricList[metricIndex].layerRange);
+                    _this23.moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, _this23.overviewModel.metricList[metricIndex].layerRange);
 
                     previousX = x;
                     previousValue = value;
                   });
 
-                  _this18.focusGraphContext.lineTo(x, y);
+                  _this23.focusGraphContext.lineTo(x, y);
 
-                  _this18.focusGraphContext.lineTo(_this18.focusModel.horizontalX, y);
+                  _this23.focusGraphContext.lineTo(_this23.focusModel.horizontalX, y);
 
-                  _this18.focusGraphContext.closePath();
+                  _this23.focusGraphContext.closePath();
 
-                  _this18.focusGraphContext.fillStyle = "#" + _this18.config.colors[metricIndex][layerIndex];
+                  _this23.focusGraphContext.fillStyle = "#" + _this23.config.colors[metricIndex][layerIndex];
 
-                  _this18.focusGraphContext.fill();
+                  _this23.focusGraphContext.fill();
                 });
               });
             });
@@ -860,16 +1131,18 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           key: "moveContextBasedOnValue",
           value: function moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, layerRange) {
             if (value == 0) {
+              // draw line straight down to base if value is 0
               this.focusGraphContext.lineTo(previousX, y);
             } else {
+              // move to current position at base if previous value is 0
               if (layerIndex > 0 && previousValue == 0) {
                 this.focusGraphContext.lineTo(x, y);
               }
 
               if (value >= layerRange) {
-                this.focusGraphContext.lineTo(x, y - this.config.focusMetricMaxHeight);
+                this.focusGraphContext.lineTo(x, y - this.config.focusGraph.metricMaxHeight);
               } else {
-                this.focusGraphContext.lineTo(x, y - value * this.config.focusMetricMaxHeight / layerRange);
+                this.focusGraphContext.lineTo(x, y - value * this.config.focusGraph.metricMaxHeight / layerRange);
               }
             }
           }
@@ -891,18 +1164,18 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
         }, {
           key: "updateVariable",
           value: function updateVariable(instance) {
-            var _this19 = this;
+            var _this24 = this;
 
             this.variableSrv.variables.forEach(function (v) {
               if (v.name == "node") {
-                _this19.variableSrv.setOptionAsCurrent(v, {
+                _this24.variableSrv.setOptionAsCurrent(v, {
                   text: instance.instance,
                   value: instance.instance
                 });
 
-                _this19.isUpdatingVariable = true;
+                _this24.isUpdatingVariable = true;
 
-                _this19.variableSrv.variableUpdated(v, true);
+                _this24.variableSrv.variableUpdated(v, true);
               }
             });
           }

@@ -7,17 +7,28 @@
                 <tr>
                     <td>
                         <select ng-model="ctrl.overviewMode" ng-change=selectOverviewMode()>
-                            <option value="1">Single</option>
-                            <option value="2">Multiple</option>
+                            <option value="1">Separated</option>
+                            <option value="2">Integrated</option>
                         </select>
                     </td>
 
-                    <td style="padding-left: 10px">
-                        <select ng-show="ctrl.overviewMode == 2" ng-model="ctrl.linkingMode" ng-change="selectLinker()">
-                            <option value="xCross">X Cross</option>
-                            <option value="normalCross">Normal cross</option>
-                            <option value="changeColor">Change color</option>
-                        </select>
+                    <td ng-show="ctrl.overviewMode == ctrl.enums.overviewMode.SEPARATED" style="padding-left: 10px">
+                        <table>
+                            <tr>
+                                <td>
+                                    <select ng-model="ctrl.linkingMode" ng-change="selectLinker()">
+                                        <option value="1">X Cross</option>
+                                        <option value="2">Normal cross</option>
+                                        <option value="3">Change color</option>
+                                    </select>
+                                </td>
+
+                                <td style="padding-left: 10px">
+                                    <button ng-click="groupUngroup()"
+                                        style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
+                                </td>
+                            </tr>
+                        </table>
                     </td>
                 </tr>
             </table>
@@ -31,7 +42,7 @@
             </div>
 
             <div style="position: relative; margin-top: {{ctrl.focusGraphMarginTop}}px; width: 100%; height: 100%">
-                <canvas id="focusGraphCanvas" width="10000" height="5000" style="position: absolute"
+                <canvas id="focusGraphCanvas" width="10000" height="10000" style="position: absolute"
                     ng-click="selectNode()"></canvas>
             </div>
         </div>
