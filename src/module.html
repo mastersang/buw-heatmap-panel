@@ -1,50 +1,59 @@
-<div style="width: 100%; height: 100%;overflow: auto">
+<div style="width: 100%; height: 100%; overflow: auto">
     <img ng-show="ctrl.isLoading" src="/public/img/loading.gif">
 
     <div ng-hide="ctrl.isLoading">
-        <div style="width:100%; height:100%">
-            <table>
-                <tr>
-                    <td>
-                        <select ng-model="ctrl.overviewMode" ng-change=selectOverviewMode()>
-                            <option value="1">Separated</option>
-                            <option value="2">Integrated</option>
-                        </select>
+        <table>
+            <tr>
+                <td>
+                    <select ng-model="ctrl.overviewMode" ng-change=selectOverviewMode()>
+                        <option value="1">Separated</option>
+                        <option value="2">Integrated</option>
+                    </select>
+                </td>
+
+                <td ng-show="ctrl.overviewMode == ctrl.enums.overviewMode.SEPARATED">
+                    <table>
+                        <tr>
+                            <td ng-if="false" style="padding-left: 10px">
+                                <select ng-model="ctrl.linkingMode" ng-change="selectLinker()">
+                                    <option value="1">X Cross</option>
+                                    <option value="2">Normal cross</option>
+                                    <option value="3">Change color</option>
+                                </select>
+                            </td>
+
+                            <td style="padding-left: 10px">
+                                <button ng-click="groupUngroup()"
+                                    style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <div style="position:relative;margin-top: 10px">
+            <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewWidth}}"
+                height="{{ctrl.overviewHeight}}"></canvas>
+            <canvas id="focusAreaCanvas" style="position: absolute; cursor: crosshair" width="{{ctrl.overviewWidth}}"
+                height="{{ctrl.overviewHeight}}" ng-mousemove="moveFocusArea($event)"
+                ng-click="fixFocusArea($event)"></canvas>
+        </div>
+
+        <div id="focusGraphContainer" style="height: 400px; overflow: auto; margin-top: {{ctrl.focusGraphMarginTop}}px">
+            <table id="focusGraphTable">
+                <tr ng-repeat="instance in ctrl.focusModel.data" style="border-bottom:1px dashed black"
+                    ng-click="selectNode(instance)">
+                    <td style="line-height: 100%; {{instance.isSelected ? 'font-weight: bold; color: brown' : ''}}">
+                        {{ctrl.isGrouped ? "Group " + instance.groupIndex : instance.instance}}
                     </td>
 
-                    <td ng-show="ctrl.overviewMode == ctrl.enums.overviewMode.SEPARATED" style="padding-left: 10px">
-                        <table>
-                            <tr>
-                                <td>
-                                    <select ng-model="ctrl.linkingMode" ng-change="selectLinker()">
-                                        <option value="1">X Cross</option>
-                                        <option value="2">Normal cross</option>
-                                        <option value="3">Change color</option>
-                                    </select>
-                                </td>
-
-                                <td style="padding-left: 10px">
-                                    <button ng-click="groupUngroup()"
-                                        style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
-                                </td>
-                            </tr>
-                        </table>
+                    <td style="padding-left: 20px">
+                        <canvas id="focusGraphCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
+                            height="{{ctrl.focusGraphHeight}}"></canvas>
                     </td>
                 </tr>
             </table>
-
-            <div style="position:relative;margin-top: 10px">
-                <canvas id="overviewCanvas" style="position: absolute;" width="{{ctrl.overviewWidth}}"
-                    height="{{ctrl.overviewHeight}}"></canvas>
-                <canvas id="focusAreaCanvas" style="position: absolute" width="{{ctrl.overviewWidth}}"
-                    height="{{ctrl.overviewHeight}}" ng-mousemove="moveFocusArea($event)"
-                    ng-click="fixFocusArea($event)"></canvas>
-            </div>
-
-            <div style="position: relative; margin-top: {{ctrl.focusGraphMarginTop}}px; width: 100%; height: 100%">
-                <canvas id="focusGraphCanvas" width="10000" height="10000" style="position: absolute"
-                    ng-click="selectNode()"></canvas>
-            </div>
         </div>
     </div>
 </div>

@@ -11,6 +11,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.events.on("data-received", this.onDataReceived.bind(this));
         this.overviewModel = {};
         this.focusModel = {};
+        this.scope.focusModel = this.focusModel;
         this.initialiseConfig();
     }
 
@@ -44,6 +45,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             horizontalMarginBetweenMetrics: 30,
             marginBetweenInstances: 6,
             startingGreyColor: 240,
+            endingGrayColor: 80,
             groupBarWidth: 9,
         }
     }
@@ -58,22 +60,21 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseFocusGraphConfig() {
         this.config.focusGraph = {
-            leftMargin: 40,
-            fontSize: 15,
-            pointWidth: 5,
+            pointWidth: 20,
             metricMaxHeight: 30,
             marginBetweenMetrics: 10,
-            marginBetweenInstances: 20
+            maxWidth: 10000,
+            maxHeight: 10000
         }
     }
 
-    link(scope, elem, attrs, ctrl) {
+    link(scope, elem) {
         this.scope = scope;
         this.elem = elem;
 
         this.initialiseControl();
         this.initialiseUIFunctions();
-        this.initialiseCanvases();
+        this.initialiseUIElements();
     }
 
     initialiseControl() {
@@ -118,21 +119,29 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             parent.fixFocusArea.bind(parent, evt)();
         }
 
-        this.scope.selectNode = function () {
-            parent.selectNode.bind(parent)();
+        this.scope.selectNode = function (instance) {
+            parent.selectNode.bind(parent, instance)();
         }
     }
 
-    initialiseCanvases() {
-        this.overviewCanvas = this.elem.find("#overviewCanvas")[0];
+    initialiseUIElements() {
+        // overview
+        this.overviewCanvas = this.getElementByID("overviewCanvas");
         this.overviewContext = this.overviewCanvas.getContext("2d");
 
-        this.focusAreaCanvas = this.elem.find("#focusAreaCanvas")[0];
+        // focus area
+        this.focusAreaCanvas = this.getElementByID("focusAreaCanvas");
         this.focusAreaContext = this.focusAreaCanvas.getContext("2d");
 
-        this.focusGraphCanvas = this.elem.find("#focusGraphCanvas")[0];
-        this.focusGraphContext = this.focusGraphCanvas.getContext("2d");
-        this.focusGraphContext.font = this.config.focusGraph.fontSize + "px arial";
+        // focus graph
+        this.scope.ctrl.focusGraphWidth = this.config.focusGraph.maxWidth;
+        this.scope.ctrl.focusGraphHeight = this.config.focusGraph.maxHeight;
+        this.focusGraphContainer = this.getElementByID("focusGraphContainer");
+        this.focusGraphTable = this.getElementByID("focusGraphTable");
+    }
+
+    getElementByID(id) {
+        return this.elem.find("#" + id)[0];
     }
 
     onDataReceived(data) {
@@ -172,7 +181,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 this.processRawData();
             }
-        }, 100);
+        });
     }
 
     getDateInSeconds(date) {
@@ -425,41 +434,40 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    drawOverviewData() {
-        var parent = this;
-
-        this.$timeout(() => {
-            parent.drawOverviewDataWrapper.bind(parent)();
-        }, 100);
+    clearFocus() {
+        this.hasFocus = false;
+        this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
     }
 
-    drawOverviewDataWrapper() {
-        this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
-        var length = this.getInstanceHorizontalLength();
+    drawOverviewData() {
+        this.$timeout(() => {
+            this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
+            var length = this.getInstanceHorizontalLength();
 
-        if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
-            this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
+            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
+                this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
 
-            if (this.scope.ctrl.isGrouped) {
-                this.scope.ctrl.overviewHeight = this.overviewModel.groupList.length * this.config.overview.groupedPointHeight;
+                if (this.scope.ctrl.isGrouped) {
+                    this.scope.ctrl.overviewHeight = this.overviewModel.groupList.length * this.config.overview.groupedPointHeight;
+                } else {
+                    this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.config.overview.ungroupedPointHeight;
+                }
+
+                this.scope.$apply();
+                this.drawSeparated();
             } else {
-                this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.config.overview.ungroupedPointHeight;
-            }
+                this.overviewModel.overviewInstanceHeight =
+                    this.config.overview.ungroupedPointHeight * this.overviewModel.metricList.length +
+                    this.config.overview.verticalMarginalBetweenMetrics * (this.overviewModel.metricList.length - 1) +
+                    this.config.overview.marginBetweenInstances;
+                this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
+                this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.overviewModel.overviewInstanceHeight;
+                this.scope.$apply();
+                this.drawIntengrated();
+            };
 
-            this.scope.$apply();
-            this.drawSeparated();
-        } else {
-            this.overviewModel.overviewInstanceHeight =
-                this.config.overview.ungroupedPointHeight * this.overviewModel.metricList.length +
-                this.config.overview.verticalMarginalBetweenMetrics * (this.overviewModel.metricList.length - 1) +
-                this.config.overview.marginBetweenInstances;
-            this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
-            this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.overviewModel.overviewInstanceHeight;
-            this.scope.$apply();
-            this.drawIntengrated();
-        };
-
-        this.scope.ctrl.focusGraphMarginTop = this.scope.ctrl.overviewHeight + this.config.marginBetweenOverviewAndFocus;
+            this.scope.ctrl.focusGraphMarginTop = this.scope.ctrl.overviewHeight + this.config.marginBetweenOverviewAndFocus;
+        });
     }
 
     getInstanceHorizontalLength() {
@@ -566,7 +574,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawGroupBars() {
-        var colorStep = this.config.overview.startingGreyColor / this.overviewModel.groupList.length;
+        var colorStep = (this.config.overview.startingGreyColor - this.config.overview.endingGrayColor) / this.overviewModel.groupList.length;
 
         for (var i = 1; i < this.overviewModel.metricList.length; ++i) {
             var x = this.overviewModel.metricList[i].startX - this.config.overview.horizontalMarginBetweenMetrics / 2;
@@ -627,15 +635,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             // only update focus graph if mouse is pointing on one of metric overview graphs
             if (metric.startX <= this.focusModel.mousePosition.x && this.focusModel.mousePosition.x <= metric.endX) {
                 this.drawFocusGraph();
+                this.autoSrollFocusGraph();
                 break;
             }
         }
-    }
-
-    clearFocus() {
-        this.hasFocus = false;
-        this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
-        this.focusGraphContext.clearRect(0, 0, this.focusGraphCanvas.width, this.focusGraphCanvas.height);
     }
 
     getMousePos(evt, canvas) {
@@ -718,6 +721,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var pixelData = this.overviewContext.getImageData(this.focusModel.mousePosition.x, this.focusModel.mousePosition.y, 1, 1).data;
         this.focusAreaContext.strokeStyle = "rgb(" + pixelData[0] + "," + pixelData[1] + "," + pixelData[2] + ")";
         var instance = this.getLinkerTargetInstance();
+        instance = null; // temp flag to prevent drawing linkers
 
         if (instance) {
             this.overviewModel.metricList.forEach((metric, index) => {
@@ -732,7 +736,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         for (var i = 0; i < this.overviewModel.data.length; ++i) {
             var instance = this.overviewModel.data[i];
 
-            if (instance.y <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <= instance.y + this.config.overview.ungroupedPointHeight) {
+            if (instance.y - this.config.overview.ungroupedPointHeight <= this.focusModel.mousePosition.y &&
+                this.focusModel.mousePosition.y <= instance.y) {
                 return instance;
             }
         }
@@ -842,21 +847,26 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawFocusGraph() {
         this.initialiseFocusGraphData();
-        this.drawFocusGraphLabels();
-        this.drawFocusGraphData();
+
+        this.$timeout(() => {
+            this.scope.ctrl.focusGraphHeight = this.overviewModel.metricList.length * this.config.focusGraph.metricMaxHeight +
+                (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
+            this.scope.ctrl.focusGraphWidth = this.focusModel.data[0].metricList[0].data.length * this.config.focusGraph.pointWidth;
+            this.scope.$apply();
+            this.drawFocusGraphData();
+        });
     }
 
     initialiseFocusGraphData() {
         this.focusModel.data = [];
 
         if (this.scope.ctrl.isGrouped) {
-            this.overviewModel.groupList.forEach((group) => {
+            this.overviewModel.groupList.forEach((group, groupIndex) => {
                 var firstInstance = group.instanceList[0];
 
                 if (this.checkInstanceInFocus(firstInstance)) {
-                    group.instanceList.forEach((instance) => {
-                        this.initialiseFocusInstance(instance, this.getIndexesOfPointsInFocus(firstInstance));
-                    });
+                    var focusInstance = this.initialiseFocusInstance(firstInstance, this.getIndexesOfPointsInFocus(firstInstance));
+                    focusInstance.groupIndex = groupIndex;
                 }
             });
         } else {
@@ -866,6 +876,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 }
             });
         }
+    }
+
+    checkInstanceInFocus(instance) {
+        return instance.y <= this.focusModel.focusStartY + this.getFocusAreaSize() &&
+            instance.y + this.overviewModel.overviewInstanceHeight >= this.focusModel.focusStartY
     }
 
     getIndexesOfPointsInFocus(instance) {
@@ -890,11 +905,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return indexes;
     }
 
-    checkInstanceInFocus(instance) {
-        return instance.y <= this.focusModel.focusStartY + this.getFocusAreaSize() &&
-            instance.y + this.overviewModel.overviewInstanceHeight >= this.focusModel.focusStartY
-    }
-
     initialiseFocusInstance(overviewInstance, indexList) {
         var focusInstance = {};
         focusInstance.instance = overviewInstance.instance;
@@ -902,6 +912,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.addFocusMetrics(focusInstance, overviewInstance, indexList);
         this.initialiseInstanceLayers(focusInstance);
         this.focusModel.data.push(focusInstance);
+        return focusInstance;
     }
 
     addFocusMetrics(focusInstance, overviewInstance, indexList) {
@@ -923,8 +934,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseInstanceLayers(instance) {
-        instance.metricList.forEach((metric, index) => {
-            this.config.colors.forEach(() => {
+        instance.metricList.forEach((metric, metricIndex) => {
+            this.config.colors[metricIndex].forEach(() => {
                 var layer = {};
                 layer.valueList = [];
                 metric.layerList.push(layer);
@@ -935,110 +946,103 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 metric.layerList.forEach((layer) => {
                     layer.valueList.push(value > 0 ? value : 0);
-                    value -= this.overviewModel.metricList[index].layerRange;
+                    value -= this.overviewModel.metricList[metricIndex].layerRange;
                 });
             });
         });
     }
 
-    drawFocusGraphLabels() {
-        this.focusModel.horizontalX = 0;
-        this.focusGraphContext.setLineDash([10, 10]);
-        this.focusGraphContext.fillStyle = "black";
-        this.focusModel.instanceHeight = this.config.focusGraph.metricMaxHeight * this.overviewModel.metricList.length +
-            this.config.focusGraph.marginBetweenMetrics * (this.overviewModel.metricList.length - 1) + this.config.focusGraph.marginBetweenInstances;
-
-        this.focusModel.data.forEach((instance, index) => {
-            this.drawFocusGraphLabelByInstance(instance, index);
-        });
-
-        this.focusModel.horizontalX += this.config.focusGraph.leftMargin;
-    }
-
-    drawFocusGraphLabelByInstance(instance, index) {
-        var label = instance.instance;
-        var metrics = this.focusGraphContext.measureText(label);
-        instance.y = index * this.focusModel.instanceHeight;
-        var labelY = instance.y + this.focusModel.instanceHeight / 2;
-        this.focusGraphContext.fillText(label, 0, labelY);
-
-        if (index > 0) {
-            this.drawSeperator(instance);
-        }
-
-        if (metrics.width > this.focusModel.horizontalX) {
-            this.focusModel.horizontalX = metrics.width;
-        }
-    }
-
-    drawSeperator(instance) {
-        var lineY = instance.y - this.config.focusGraph.marginBetweenInstances / 2;
-        this.focusGraphContext.beginPath();
-        this.focusGraphContext.moveTo(0, lineY);
-        this.focusGraphContext.lineTo(10000, lineY);
-        this.focusGraphContext.stroke();
-    }
-
     drawFocusGraphData() {
-        this.focusModel.data.forEach((instance) => {
+        this.focusModel.data.forEach((instance, instanceIndex) => {
+            var canvas = this.getElementByID("focusGraphCanvas-" + instanceIndex);
+            var context = canvas.getContext("2d");
+
             instance.metricList.forEach((metric, metricIndex) => {
                 metric.layerList.forEach((layer, layerIndex) => {
-                    var y = instance.y +
-                        (this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics) * metricIndex +
+                    var y = (this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics) * metricIndex +
                         this.config.focusGraph.metricMaxHeight;
-                    this.focusGraphContext.beginPath();
-                    this.focusGraphContext.moveTo(this.focusModel.horizontalX, y);
-                    var x = this.focusModel.horizontalX;
+                    context.beginPath();
+                    context.moveTo(0, y);
+                    var x = 0;
                     var previousX = x;
                     var previousValue = 0;
 
-                    layer.valueList.forEach((value, valueIndex) => {
-                        x += valueIndex * this.config.focusGraph.pointWidth;
-                        this.moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, this.overviewModel.metricList[metricIndex].layerRange);
+                    layer.valueList.forEach((value) => {
+                        x += this.config.focusGraph.pointWidth;
+                        this.moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y,
+                            this.overviewModel.metricList[metricIndex].layerRange);
                         previousX = x;
                         previousValue = value;
                     });
 
-                    this.focusGraphContext.lineTo(x, y);
-                    this.focusGraphContext.lineTo(this.focusModel.horizontalX, y);
-                    this.focusGraphContext.closePath();
-                    this.focusGraphContext.fillStyle = "#" + this.config.colors[metricIndex][layerIndex];
-                    this.focusGraphContext.fill();
+                    context.lineTo(x, y);
+                    context.lineTo(this.focusModel.graphBeginX, y);
+                    context.closePath();
+                    context.fillStyle = "#" + this.config.colors[metricIndex][layerIndex];
+                    context.fill();
                 });
             });
         });
     }
 
-    moveContextBasedOnValue(value, previousX, previousValue, layerIndex, x, y, layerRange) {
+    moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y, layerRange) {
         if (value == 0) {
             // draw line straight down to base if value is 0
-            this.focusGraphContext.lineTo(previousX, y);
+            context.lineTo(previousX, y);
         } else {
             // move to current position at base if previous value is 0
             if (layerIndex > 0 && previousValue == 0) {
-                this.focusGraphContext.lineTo(x, y);
+                context.lineTo(x, y);
             }
 
             if (value >= layerRange) {
-                this.focusGraphContext.lineTo(x, y - this.config.focusGraph.metricMaxHeight);
+                context.lineTo(x, y - this.config.focusGraph.metricMaxHeight);
             } else {
-                this.focusGraphContext.lineTo(x, y - value * this.config.focusGraph.metricMaxHeight / layerRange);
+                context.lineTo(x, y - value * this.config.focusGraph.metricMaxHeight / layerRange);
             }
         }
     }
 
-    selectNode() {
-        if (!this.isUpdatingVariable) {
-            var mousePos = this.getMousePos(event, this.focusGraphCanvas);
-            var height = this.focusModel.instanceHeight;
+    autoSrollFocusGraph() {
+        if (this.scope.ctrl.isGrouped) {
+            this.scrollByInstance(this.getFirstInstanceOfSelectedGroup());
+        } else {
+            this.scrollByInstance(this.getLinkerTargetInstance());
+        }
+    }
 
-            for (var i = 0; i < this.focusModel.data.length; ++i) {
-                if (height * i <= mousePos.y && mousePos.y <= height * (i + 1)) {
-                    this.updateVariable(this.focusModel.data[i]);
-                    break;
-                }
+    getFirstInstanceOfSelectedGroup() {
+        for (var i = 0; i < this.overviewModel.groupList.length; ++i) {
+            var group = this.overviewModel.groupList[i];
+            var firstInstance = group.instanceList[0];
+
+            if (firstInstance.y <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <=
+                firstInstance.y + this.config.overview.groupedPointHeight) {
+                return firstInstance;
             }
         }
+    }
+
+    scrollByInstance(instance) {
+        for (var i = 0; i < this.focusModel.data.length; ++i) {
+            var focusModelInstance = this.focusModel.data[i];
+
+            if (instance.instance == focusModelInstance.instance) {
+                focusModelInstance.isSelected = true;
+                this.focusGraphContainer.scrollTop = this.scope.ctrl.focusGraphHeight * i;
+            } else {
+                focusModelInstance.isSelected = false;
+            }
+        }
+    }
+
+    selectNode(instance) {
+        this.focusModel.data.forEach((focusInstance) => {
+            focusInstance.isSelected = false;
+        });
+
+        instance.isSelected = true;
+        this.updateVariable(instance);
     }
 
     updateVariable(instance) {
