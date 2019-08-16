@@ -119,8 +119,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             parent.fixFocusArea.bind(parent, evt)();
         }
 
-        this.scope.selectNode = function (instance) {
-            parent.selectNode.bind(parent, instance)();
+        this.scope.selectNode = function (index) {
+            parent.selectNode.bind(parent, index)();
         }
     }
 
@@ -606,6 +606,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     groupUngroup() {
         this.scope.ctrl.isGrouped = !this.scope.ctrl.isGrouped;
+        this.overviewModel.changedGroupMode = true;
         this.drawOverviewData();
     }
 
@@ -847,18 +848,26 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawFocusGraph() {
         this.initialiseFocusGraphData();
+        this.overviewModel.changedGroupMode = false;
 
-        this.$timeout(() => {
-            this.scope.ctrl.focusGraphHeight = this.overviewModel.metricList.length * this.config.focusGraph.metricMaxHeight +
-                (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
-            this.scope.ctrl.focusGraphWidth = this.focusModel.data[0].metricList[0].data.length * this.config.focusGraph.pointWidth;
-            this.scope.$apply();
-            this.drawFocusGraphData();
-        });
+        if (this.focusModel.data.length > 0) {
+            this.$timeout(() => {
+                this.scope.ctrl.focusGraphHeight = this.overviewModel.metricList.length * this.config.focusGraph.metricMaxHeight +
+                    (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
+                this.scope.ctrl.focusGraphWidth = this.focusModel.data[0].metricList[0].data.length * this.config.focusGraph.pointWidth;
+                this.scope.$apply();
+                this.focusModel.focusRowHeight = this.getElementByID("focusGraphRow-1").offsetHeight;
+                this.drawFocusGraphData();
+            });
+        }
     }
 
     initialiseFocusGraphData() {
-        this.focusModel.data = [];
+        if (!this.focusModel.data) {
+            this.focusModel.data = [];
+        }
+
+        this.focusModel.data.length = 0;
 
         if (this.scope.ctrl.isGrouped) {
             this.overviewModel.groupList.forEach((group, groupIndex) => {
@@ -866,7 +875,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 if (this.checkInstanceInFocus(firstInstance)) {
                     var focusInstance = this.initialiseFocusInstance(firstInstance, this.getIndexesOfPointsInFocus(firstInstance));
-                    focusInstance.groupIndex = groupIndex;
+                    focusInstance.groupIndex = groupIndex + 1;
                 }
             });
         } else {
@@ -956,6 +965,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.focusModel.data.forEach((instance, instanceIndex) => {
             var canvas = this.getElementByID("focusGraphCanvas-" + instanceIndex);
             var context = canvas.getContext("2d");
+            context.clearRect(0, 0, canvas.width, canvas.height);
 
             instance.metricList.forEach((metric, metricIndex) => {
                 metric.layerList.forEach((layer, layerIndex) => {
@@ -964,11 +974,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     context.beginPath();
                     context.moveTo(0, y);
                     var x = 0;
-                    var previousX = x;
+                    var previousX = 0;
                     var previousValue = 0;
 
-                    layer.valueList.forEach((value) => {
-                        x += this.config.focusGraph.pointWidth;
+                    layer.valueList.forEach((value, valueIndex) => {
+                        x = this.config.focusGraph.pointWidth * valueIndex;
                         this.moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y,
                             this.overviewModel.metricList[metricIndex].layerRange);
                         previousX = x;
@@ -1011,6 +1021,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
+    scrollByInstance(instance) {
+        for (var i = 0; i < this.focusModel.data.length; ++i) {
+            var focusModelInstance = this.focusModel.data[i];
+
+            if (instance.instance == focusModelInstance.instance) {
+                focusModelInstance.isSelected = true;
+                this.focusGraphContainer.scrollTop = this.focusModel.focusRowHeight * i;
+            } else {
+                focusModelInstance.isSelected = false;
+            }
+        }
+    }
+
     getFirstInstanceOfSelectedGroup() {
         for (var i = 0; i < this.overviewModel.groupList.length; ++i) {
             var group = this.overviewModel.groupList[i];
@@ -1023,24 +1046,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    scrollByInstance(instance) {
-        for (var i = 0; i < this.focusModel.data.length; ++i) {
-            var focusModelInstance = this.focusModel.data[i];
-
-            if (instance.instance == focusModelInstance.instance) {
-                focusModelInstance.isSelected = true;
-                this.focusGraphContainer.scrollTop = this.scope.ctrl.focusGraphHeight * i;
-            } else {
-                focusModelInstance.isSelected = false;
-            }
-        }
-    }
-
-    selectNode(instance) {
+    selectNode(index) {
         this.focusModel.data.forEach((focusInstance) => {
             focusInstance.isSelected = false;
         });
 
+        var instance = this.focusModel.data[index];
         instance.isSelected = true;
         this.updateVariable(instance);
     }

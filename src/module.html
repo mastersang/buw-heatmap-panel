@@ -41,14 +41,15 @@
         </div>
 
         <div id="focusGraphContainer" style="height: 400px; overflow: auto; margin-top: {{ctrl.focusGraphMarginTop}}px">
-            <table id="focusGraphTable">
-                <tr ng-repeat="instance in ctrl.focusModel.data" style="border-bottom:1px dashed black"
-                    ng-click="selectNode(instance)">
-                    <td style="line-height: 100%; {{instance.isSelected ? 'font-weight: bold; color: brown' : ''}}">
-                        {{ctrl.isGrouped ? "Group " + instance.groupIndex : instance.instance}}
+            <table id="focusGraphTable" cellspacing="0" cellpadding="0">
+                <tr ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
+                    style="border-bottom:1px dashed black" ng-click="selectNode($index)" id="focusGraphRow-{{$index}}">
+                    <td
+                        style="line-height: 100%; {{ctrl.focusModel.data[$index].isSelected ? 'font-weight: bold; color: brown' : ''}}">
+                        {{ctrl.isGrouped ? "Group " + ctrl.focusModel.data[$index].groupIndex : ctrl.focusModel.data[$index].instance}}
                     </td>
 
-                    <td style="padding-left: 20px">
+                    <td style="padding-left: 20px" height="{{ctrl.focusGraphHeight}}">
                         <canvas id="focusGraphCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
                             height="{{ctrl.focusGraphHeight}}"></canvas>
                     </td>

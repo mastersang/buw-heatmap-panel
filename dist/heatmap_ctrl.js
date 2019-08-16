@@ -160,8 +160,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               parent.fixFocusArea.bind(parent, evt)();
             };
 
-            this.scope.selectNode = function (instance) {
-              parent.selectNode.bind(parent, instance)();
+            this.scope.selectNode = function (index) {
+              parent.selectNode.bind(parent, index)();
             };
           }
         }, {
@@ -697,6 +697,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
           key: "groupUngroup",
           value: function groupUngroup() {
             this.scope.ctrl.isGrouped = !this.scope.ctrl.isGrouped;
+            this.overviewModel.changedGroupMode = true;
             this.drawOverviewData();
           }
         }, {
@@ -838,7 +839,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             for (var i = 0; i < this.overviewModel.data.length; ++i) {
               var instance = this.overviewModel.data[i];
 
-              if (instance.y >= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y >= instance.y - this.config.overview.ungroupedPointHeight) {
+              if (instance.y - this.config.overview.ungroupedPointHeight <= this.focusModel.mousePosition.y && this.focusModel.mousePosition.y <= instance.y) {
                 return instance;
               }
             }
@@ -957,21 +958,31 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             var _this20 = this;
 
             this.initialiseFocusGraphData();
-            this.$timeout(function () {
-              _this20.scope.ctrl.focusGraphHeight = _this20.overviewModel.metricList.length * _this20.config.focusGraph.metricMaxHeight + (_this20.overviewModel.metricList.length - 1) * _this20.config.focusGraph.marginBetweenMetrics;
-              _this20.scope.ctrl.focusGraphWidth = _this20.focusModel.data[0].metricList[0].data.length * _this20.config.focusGraph.pointWidth;
+            this.overviewModel.changedGroupMode = false;
 
-              _this20.scope.$apply();
+            if (this.focusModel.data.length > 0) {
+              this.$timeout(function () {
+                _this20.scope.ctrl.focusGraphHeight = _this20.overviewModel.metricList.length * _this20.config.focusGraph.metricMaxHeight + (_this20.overviewModel.metricList.length - 1) * _this20.config.focusGraph.marginBetweenMetrics;
+                _this20.scope.ctrl.focusGraphWidth = _this20.focusModel.data[0].metricList[0].data.length * _this20.config.focusGraph.pointWidth;
 
-              _this20.drawFocusGraphData();
-            });
+                _this20.scope.$apply();
+
+                _this20.focusModel.focusRowHeight = _this20.getElementByID("focusGraphRow-1").offsetHeight;
+
+                _this20.drawFocusGraphData();
+              });
+            }
           }
         }, {
           key: "initialiseFocusGraphData",
           value: function initialiseFocusGraphData() {
             var _this21 = this;
 
-            this.focusModel.data = [];
+            if (!this.focusModel.data) {
+              this.focusModel.data = [];
+            }
+
+            this.focusModel.data.length = 0;
 
             if (this.scope.ctrl.isGrouped) {
               this.overviewModel.groupList.forEach(function (group, groupIndex) {
@@ -980,7 +991,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
                 if (_this21.checkInstanceInFocus(firstInstance)) {
                   var focusInstance = _this21.initialiseFocusInstance(firstInstance, _this21.getIndexesOfPointsInFocus(firstInstance));
 
-                  focusInstance.groupIndex = groupIndex;
+                  focusInstance.groupIndex = groupIndex + 1;
                 }
               });
             } else {
@@ -1077,16 +1088,17 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
               var canvas = _this24.getElementByID("focusGraphCanvas-" + instanceIndex);
 
               var context = canvas.getContext("2d");
+              context.clearRect(0, 0, canvas.width, canvas.height);
               instance.metricList.forEach(function (metric, metricIndex) {
                 metric.layerList.forEach(function (layer, layerIndex) {
                   var y = (_this24.config.focusGraph.metricMaxHeight + _this24.config.focusGraph.marginBetweenMetrics) * metricIndex + _this24.config.focusGraph.metricMaxHeight;
                   context.beginPath();
                   context.moveTo(0, y);
                   var x = 0;
-                  var previousX = x;
+                  var previousX = 0;
                   var previousValue = 0;
-                  layer.valueList.forEach(function (value) {
-                    x += _this24.config.focusGraph.pointWidth;
+                  layer.valueList.forEach(function (value, valueIndex) {
+                    x = _this24.config.focusGraph.pointWidth * valueIndex;
 
                     _this24.moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y, _this24.overviewModel.metricList[metricIndex].layerRange);
 
@@ -1131,6 +1143,36 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             }
           }
         }, {
+          key: "scrollByInstance",
+          value: function scrollByInstance(instance) {
+            var _this25 = this;
+
+            for (var i = 0; i < this.focusModel.data.length; ++i) {
+              var focusModelInstance = this.focusModel.data[i];
+
+              if (instance.instance == focusModelInstance.instance) {
+                focusModelInstance.isSelected = true;
+                this.focusGraphContainer.scrollTop = this.focusModel.focusRowHeight * i;
+
+                for (var j = 0; j < instance.metricList.length; ++j) {
+                  var metric = instance.metricList[j];
+
+                  if (metric.data.length > 0) {
+                    var overviewMetric = this.overviewModel.metricList[j];
+                    metric.data.forEach(function (point, pointIndex) {
+                      if (overviewMetric.focusStartX <= point.x && point.x <= overviewMetric.focusStartX + _this25.getFocusAreaSize()) {
+                        _this25.focusGraphContainer.scrollLeft = _this25.config.focusGraph.pointWidth * pointIndex;
+                      }
+                    });
+                    break;
+                  }
+                }
+              } else {
+                focusModelInstance.isSelected = false;
+              }
+            }
+          }
+        }, {
           key: "getFirstInstanceOfSelectedGroup",
           value: function getFirstInstanceOfSelectedGroup() {
             for (var i = 0; i < this.overviewModel.groupList.length; ++i) {
@@ -1143,43 +1185,30 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "lodash"], function (_expo
             }
           }
         }, {
-          key: "scrollByInstance",
-          value: function scrollByInstance(instance) {
-            for (var i = 0; i < this.focusModel.data.length; ++i) {
-              var focusModelInstance = this.focusModel.data[i];
-
-              if (instance.instance == focusModelInstance.instance) {
-                focusModelInstance.isSelected = true;
-                this.focusGraphContainer.scrollTop = this.scope.ctrl.focusGraphHeight * i;
-              } else {
-                focusModelInstance.isSelected = false;
-              }
-            }
-          }
-        }, {
           key: "selectNode",
-          value: function selectNode(instance) {
+          value: function selectNode(index) {
             this.focusModel.data.forEach(function (focusInstance) {
               focusInstance.isSelected = false;
             });
+            var instance = this.focusModel.data[index];
             instance.isSelected = true;
             this.updateVariable(instance);
           }
         }, {
           key: "updateVariable",
           value: function updateVariable(instance) {
-            var _this25 = this;
+            var _this26 = this;
 
             this.variableSrv.variables.forEach(function (v) {
               if (v.name == "node") {
-                _this25.variableSrv.setOptionAsCurrent(v, {
+                _this26.variableSrv.setOptionAsCurrent(v, {
                   text: instance.instance,
                   value: instance.instance
                 });
 
-                _this25.isUpdatingVariable = true;
+                _this26.isUpdatingVariable = true;
 
-                _this25.variableSrv.variableUpdated(v, true);
+                _this26.variableSrv.variableUpdated(v, true);
               }
             });
           }
