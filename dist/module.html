@@ -11,7 +11,7 @@
                     </select>
                 </td>
 
-                <td ng-show="ctrl.overviewMode == ctrl.enums.overviewMode.SEPARATED">
+                <td ng-show="ctrl.overviewMode == ctrl.enumList.overviewMode.SEPARATED">
                     <table>
                         <tr>
                             <td ng-if="false" style="padding-left: 10px">
@@ -19,6 +19,22 @@
                                     <option value="1">X Cross</option>
                                     <option value="2">Normal cross</option>
                                     <option value="3">Change color</option>
+                                </select>
+                            </td>
+
+                            <td style="padding-left: 10px">
+                                <select ng-model="ctrl.groupingMode" ng-change="selectGroupingMode()">
+                                    <option value="1">Single-attribute</option>
+                                    <option value="2">Multi-attribute</option>
+                                </select>
+                            </td>
+
+                            <td ng-show="ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE"
+                                style="padding-left: 10px">
+                                <select ng-model="ctrl.attributeForGrouping" ng-change="selectAttributeForGrouping()">
+                                    <option value="0">CPU</option>
+                                    <option value="1">Memory</option>
+                                    <option value="2">Disk</option>
                                 </select>
                             </td>
 
@@ -33,7 +49,7 @@
         </table>
 
         <div style="position:relative;margin-top: 10px">
-            <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewWidth}}"
+            <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
                 height="{{ctrl.overviewHeight}}"></canvas>
             <canvas id="focusAreaCanvas" style="position: absolute; cursor: crosshair" width="{{ctrl.overviewWidth}}"
                 height="{{ctrl.overviewHeight}}" ng-mousemove="moveFocusArea($event)"

@@ -78,7 +78,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseControl() {
-        this.scope.ctrl.enums = {
+        this.scope.ctrl.enumList = {
             overviewMode: {
                 SEPARATED: "1",
                 INTEGRATED: "2"
@@ -88,11 +88,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 X_CROSS: "1",
                 NORMAL_CROSS: "2",
                 CHANGE_COLOR: "3",
+            },
+
+            groupingMode: {
+                SINGLE: "1",
+                MULTIPLE: "2",
             }
         };
 
-        this.scope.ctrl.overviewMode = this.scope.ctrl.enums.overviewMode.SEPARATED;
-        this.scope.ctrl.linkingMode = this.scope.ctrl.enums.linkingMode.X_CROSS;
+        this.scope.ctrl.overviewMode = this.scope.ctrl.enumList.overviewMode.SEPARATED;
+        this.scope.ctrl.linkingMode = this.scope.ctrl.enumList.linkingMode.X_CROSS;
+        this.scope.ctrl.groupingMode = this.scope.ctrl.enumList.groupingMode.SINGLE;
+        this.scope.ctrl.attributeForGrouping = "0";
         this.scope.ctrl.isGrouped = true;
     }
 
@@ -105,6 +112,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.scope.selectLinker = function () {
             parent.selectLinker();
+        }
+
+        this.scope.selectGroupingMode = function () {
+            parent.selectGroupingMode();
+        }
+
+        this.scope.selectAttributeForGrouping = function () {
+            parent.selectAttributeForGrouping();
         }
 
         this.scope.groupUngroup = function () {
@@ -404,13 +419,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     checkInstanceInGroup(instance, group) {
-        for (var i = 0; i < instance.metricList.length; ++i) {
-            if (instance.metricList[i].total != group.metricList[i].total) {
-                return false;
+        if (this.scope.ctrl.groupingMode == this.scope.ctrl.enumList.groupingMode.SINGLE) {
+            var index = parseInt(this.scope.ctrl.attributeForGrouping);
+            return instance.metricList[index].total == group.metricList[index].total;
+        } else {
+            for (var i = 0; i < instance.metricList.length; ++i) {
+                if (instance.metricList[i].total != group.metricList[i].total) {
+                    return false;
+                }
             }
-        }
 
-        return true;
+            return true;
+        }
     }
 
     initialiseNewGroup(instance) {
@@ -444,13 +464,16 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
             var length = this.getInstanceHorizontalLength();
 
-            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
+            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enumList.overviewMode.SEPARATED) {
                 this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
 
                 if (this.scope.ctrl.isGrouped) {
                     this.scope.ctrl.overviewHeight = this.overviewModel.groupList.length * this.config.overview.groupedPointHeight;
+                    this.scope.ctrl.overviewCanvasWidth = this.scope.ctrl.overviewWidth + this.getMaxGroupSize() +
+                        this.config.overview.horizontalMarginBetweenMetrics;
                 } else {
                     this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.config.overview.ungroupedPointHeight;
+                    this.scope.ctrl.overviewCanvasWidth = this.scope.ctrl.overviewWidth;
                 }
 
                 this.scope.$apply();
@@ -461,6 +484,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     this.config.overview.verticalMarginalBetweenMetrics * (this.overviewModel.metricList.length - 1) +
                     this.config.overview.marginBetweenInstances;
                 this.scope.ctrl.overviewWidth = length * this.config.overview.pointWidth;
+                this.scope.ctrl.overviewCanvasWidth = this.scope.ctrl.overviewWidth;
                 this.scope.ctrl.overviewHeight = this.overviewModel.data.length * this.overviewModel.overviewInstanceHeight;
                 this.scope.$apply();
                 this.drawIntengrated();
@@ -473,12 +497,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     getInstanceHorizontalLength() {
         var length = this.getMaxMetricLength();
 
-        if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
+        if (this.scope.ctrl.overviewMode == this.scope.ctrl.enumList.overviewMode.SEPARATED) {
             return length * this.overviewModel.metricList.length +
                 (this.overviewModel.metricList.length - 1) * this.config.overview.horizontalMarginBetweenMetrics;
         } else {
             return length;
         }
+    }
+
+    getMaxGroupSize() {
+        var result = 0;
+
+        this.overviewModel.groupList.forEach((group) => {
+            if (group.instanceList.length > result) {
+                result = group.instanceList.length;
+            }
+        });
+
+        return result;
     }
 
     getMaxMetricLength() {
@@ -540,6 +576,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var instance = group.instanceList[0];
             this.drawOverviewInstance(instance, groupIndex, this.config.overview.groupedPointHeight);
         });
+
+        this.drawGroupSize();
     }
 
     drawOverviewInstance(instance, index, pointHeigh) {
@@ -560,6 +598,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             });
 
             overviewMetric.endX = overviewMetric.startX + this.overviewModel.metricWidth;
+        });
+    }
+
+    drawGroupSize() {
+        var beginX = this.scope.ctrl.overviewWidth + this.config.overview.horizontalMarginBetweenMetrics;
+
+        this.overviewModel.groupList.forEach((group, groupIndex) => {
+            var endX = beginX + group.instanceList.length;
+            var beginY = groupIndex * this.config.overview.groupedPointHeight;
+            var endY = beginY + this.config.overview.groupedPointHeight;
+            this.overviewContext.beginPath();
+            this.overviewContext.moveTo(beginX, beginY);
+            this.overviewContext.lineTo(endX, beginY);
+            this.overviewContext.lineTo(endX, endY);
+            this.overviewContext.lineTo(beginX, endY);
+            this.overviewContext.closePath();
+            this.overviewContext.fillStyle = "gray";
+            this.overviewContext.fill();
         });
     }
 
@@ -604,9 +660,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.drawFocusArea();
     }
 
+    selectGroupingMode() {
+        this.initialiseOverviewGroups();
+        this.drawOverviewData();
+    }
+
+    selectAttributeForGrouping() {
+        this.initialiseOverviewGroups();
+        this.drawOverviewData();
+    }
+
     groupUngroup() {
         this.scope.ctrl.isGrouped = !this.scope.ctrl.isGrouped;
-        this.overviewModel.changedGroupMode = true;
         this.drawOverviewData();
     }
 
@@ -656,7 +721,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var size = this.getFocusAreaSize();
             this.focusModel.focusStartY = Math.min(Math.max(0, this.focusModel.mousePosition.y - size / 2), this.overviewCanvas.height - size);
 
-            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enums.overviewMode.SEPARATED) {
+            if (this.scope.ctrl.overviewMode == this.scope.ctrl.enumList.overviewMode.SEPARATED) {
                 this.drawMultipleFocusArea(true);
             } else {
                 this.drawSingleFocusArea();
@@ -746,15 +811,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawLinkersByMode(metric, instance, index) {
         switch (this.scope.ctrl.linkingMode) {
-            case this.scope.ctrl.enums.linkingMode.X_CROSS:
+            case this.scope.ctrl.enumList.linkingMode.X_CROSS:
                 this.drawXCross(metric, instance);
                 break;
 
-            case this.scope.ctrl.enums.linkingMode.NORMAL_CROSS:
+            case this.scope.ctrl.enumList.linkingMode.NORMAL_CROSS:
                 this.drawNormalCross(metric, instance);
                 break;
 
-            case this.scope.ctrl.enums.linkingMode.CHANGE_COLOR:
+            case this.scope.ctrl.enumList.linkingMode.CHANGE_COLOR:
                 this.changeInstanceColor(metric, instance, index);
                 break;
 
@@ -848,7 +913,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawFocusGraph() {
         this.initialiseFocusGraphData();
-        this.overviewModel.changedGroupMode = false;
 
         if (this.focusModel.data.length > 0) {
             this.$timeout(() => {
@@ -856,7 +920,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
                 this.scope.ctrl.focusGraphWidth = this.focusModel.data[0].metricList[0].data.length * this.config.focusGraph.pointWidth;
                 this.scope.$apply();
-                this.focusModel.focusRowHeight = this.getElementByID("focusGraphRow-1").offsetHeight;
+                this.focusModel.focusRowHeight = this.getElementByID("focusGraphRow-0").offsetHeight;
                 this.drawFocusGraphData();
             });
         }
