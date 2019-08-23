@@ -37,3 +37,16 @@ li {
     text-align: center;
     text-decoration: underline;
 }
+
+.highlighted {
+    font-weight: bold; 
+    color: brown
+}
+
+.focusInstanceCell {
+    padding-right: 20px;
+}
+
+.focusCanvasCell {
+    padding-top: 5px;
+}
