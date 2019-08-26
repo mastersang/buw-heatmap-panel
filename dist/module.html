@@ -21,15 +21,6 @@
                     </select>
                 </td>
 
-                <!-- Attribute for grouping -->
-                <td ng-show="ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE" style="padding-left: 10px">
-                    <select ng-model="ctrl.attributeForGrouping" ng-change="selectAttributeForGrouping()">
-                        <option value="0">CPU</option>
-                        <option value="1">Memory</option>
-                        <option value="2">Disk</option>
-                    </select>
-                </td>
-
                 <td style="padding-left: 10px">
                     <button ng-click="groupUngroup()"
                         style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
@@ -43,8 +34,8 @@
                 height="{{ctrl.overviewHeight}}"></canvas>
 
             <canvas id="focusAreaCanvas" style="position: absolute; cursor: {{ctrl.overviewCursor}}"
-                width="{{ctrl.overviewWidth}}" height="{{ctrl.overviewHeight}}" ng-mousemove="moveFocusArea($event)"
-                ng-click="fixFocusArea($event)"></canvas>
+                width="{{ctrl.overviewCanvasWidth}}" height="{{ctrl.overviewHeight}}"
+                ng-mousemove="moveMouseOnOverview($event)" ng-click="clickOnOverView($event)"></canvas>
         </div>
 
         <!-- Focus graph -->
@@ -58,11 +49,11 @@
             <div id="focusGraphContainer" style="height: 350px; overflow: auto">
                 <!-- Grouped -->
                 <div ng-if="ctrl.isGrouped">
-                    <table id="focusGraphRow" ng-repeat="group in ctrl.focusModel.focusedGroupList">
+                    <table id="focusGraphRow" ng-repeat="group in ctrl.focusModel.groupList">
                         <tr ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                             style="border-bottom:1px dashed black; padding-top: 5px" ng-click="selectNode(instance)">
                             <td ng-class="{focusInstanceCell : true, highlighted: instance.isSelected}"
-                                style="line-height: 100%; text-align: center; padding-right: 20px">
+                                style="line-height: 100%; text-align: center">
                                 <div ng-show="group.showDetails">
                                     {{instance.instance}}
                                 </div>
@@ -70,7 +61,7 @@
                                 <!-- First instance -->
                                 <div ng-show="$index == 0 && !group.showDetails">
                                     <div>
-                                        {{"Group " + group.index}}
+                                        Group {{($parent.$index + 1)}}
                                     </div>
 
                                     <div>
@@ -85,7 +76,7 @@
                             </td>
 
                             <td id="canvasCell" class="focusCanvasCell">
-                                <canvas id="focusGraphCanvas-{{group.index}}-{{$index}}"
+                                <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}"
                                     width="{{ctrl.focusGraphWidth}}" height="{{ctrl.focusGraphHeight}}"></canvas>
                             </td>
                         </tr>
