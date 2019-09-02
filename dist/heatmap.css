@@ -32,12 +32,6 @@
     width: 80%;
 }
 
-li {
-    list-style-type: none;
-    text-align: center;
-    text-decoration: underline;
-}
-
 .highlighted {
     font-weight: bold; 
     color: brown
@@ -47,6 +41,19 @@ li {
     padding-right: 20px;
 }
 
+.centeredCell {
+    line-height: 100%; 
+    text-align: center
+}
+
+.bigLeftPadding {
+    padding-left: 20px
+}
+
 .focusCanvasCell {
     padding-top: 5px;
+}
+
+input {
+    padding: 5px
 }
