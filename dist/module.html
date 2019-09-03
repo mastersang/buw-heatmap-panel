@@ -51,7 +51,7 @@
                 <table id="focusGraphRow" ng-repeat="group in ctrl.focusModel.groupList">
                     <tr ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                         ng-mouseover="ctrl.moveMouseOnFocusGroup(group, instance)"
-                        ng-mouseleave="ctrl.stopCurrentInterval()"
+                        ng-mouseleave="ctrl.stopOverviewMarkerInterval()"
                         style="border-bottom:1px dashed black; padding-top: 5px" ng-click="ctrl.selectNode(instance)">
                         <td class="focusInstanceCell centeredCell">
                             <canvas id="focusGroupMarkerCanvas-{{$parent.$index}}-{{$index}}"
@@ -77,7 +77,7 @@
                                 </div>
                             </div>
 
-                            <span ng-click="showNodes(group, $event)" style="color: blue; cursor: pointer">
+                            <span ng-click="ctrl.showNodes(group, $event)" style="color: blue; cursor: pointer">
                                 {{group.showDetails ? "hide" : "show"}} details
                             </span>
                         </td>
@@ -92,9 +92,9 @@
 
             <!-- Ungrouped -->
             <table ng-if="!ctrl.isGrouped">
-                <tr ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
+                <tr id="focusGraphRow" ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
                     style="border-bottom:1px dashed black; padding-top: 5px"
-                    ng-click="ctrl.selectNode(ctrl.focusModel.data[$index])" id="focusGraphRow">
+                    ng-click="ctrl.selectNode(ctrl.focusModel.data[$index])">
                     <td
                         ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: ctrl.focusModel.data[$index].isSelected || group.showDetails}">
                         {{ctrl.focusModel.data[$index].instance}}

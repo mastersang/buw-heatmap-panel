@@ -13,6 +13,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.firstLoad = true;
         this.overviewModel = {};
+        this.overviewModel.groupMarkerList = [];
         this.focusModel = {};
         this.focusModel.groupList = [];
 
@@ -48,7 +49,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 {
                     name: "Memory",
-
                     query: "100 - (node_memory_MemFree_bytes{job='node'} - node_memory_Cached_bytes{job='node'}) * 100 / (node_memory_MemTotal_bytes{job='node'} + node_memory_Buffers_bytes{job='node'})",
 
                     colorList: [
@@ -70,7 +70,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 {
                     name: "CPU",
-
                     query: "100 - (sum by (instance) (node_filesystem_avail_bytes{job='node',device!~'(?:rootfs|/dev/loop.+)', mountpoint!~'(?:/mnt/nfs/|/run|/var/run|/cdrom).*'})) * 100 / (sum by (instance) (node_filesystem_size_bytes{job='node',device!~'rootfs'}))",
 
                     colorList: [
@@ -105,6 +104,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
             // determines which the order of attributes to use for sorting
             sortOrder: [0, 1, 2],
+            intervalTimer: 70
         }
 
         this.initialiseOverviewConfig();
@@ -137,8 +137,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             color: "Aqua",
             maxLuminanceChange: 0.7,
             focusAreaSize: 20,
-            xCrossSize: 15,
-            intervalTimer: 50
+            xCrossSize: 15
         }
     }
 
@@ -152,7 +151,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             marginBetweenMetrics: 10,
             maxHeight: 10000,
             markerSize: 20,
-            marginBetweenMarkers: 10
+            marginBetweenMarkers: 20
         }
     }
 
@@ -217,8 +216,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     onDataReceived(data) {
-        if (this.updatingVariable) {
-            this.updatingVariable = false;
+        if (this.isUpdatingVariable) {
+            this.isUpdatingVariable = false;
         } else {
             this.load();
         }
@@ -586,12 +585,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     renderOverview() {
         if (this.overviewModel.data.length > 0) {
-            this.clearFocus();
+            this.clearFocusArea();
             this.drawOverview();
         }
     }
 
-    clearFocus() {
+    clearFocusArea() {
         this.hasFocus = false;
         this.focusAreaContext.clearRect(0, 0, this.focusAreaCanvas.width, this.focusAreaCanvas.height);
     }
@@ -757,13 +756,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawOverviewInstance(instance, index, pointHeight, marginBetweenInstances, metricIndexList) {
+        instance.y = this.overviewModel.overviewStartY + index * (pointHeight + marginBetweenInstances);
         var endY = instance.y + pointHeight;
 
         if (endY > this.overviewModel.overviewEndY) {
             this.overviewModel.overviewEndY = endY;
         }
-
-        instance.y = this.overviewModel.overviewStartY + index * (pointHeight + marginBetweenInstances);
 
         metricIndexList.forEach((metricIndex) => {
             this.drawOverviewInstanceMetric(instance, metricIndex, pointHeight);
@@ -996,20 +994,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         if (this.isGrouped) {
             this.initialiseOverviewCanvasCursor();
-            var found = false;
+            this.overviewModel.hoveredGroup = null;
+            this.overviewModel.hoveredMarker = null;
+            var found = this.checkMouseIsOnGroupAndSetGroupSelected();
 
-            for (var overviewIndex = 0; overviewIndex < this.overviewModel.metricList.length; ++overviewIndex) {
-                var metric = this.overviewModel.metricList[overviewIndex];
+            if (!found) {
+                for (var markerIndex = 0; markerIndex < this.overviewModel.groupMarkerList.length; ++markerIndex) {
+                    var marker = this.overviewModel.groupMarkerList[markerIndex];
 
-                if (metric) {
-                    // only check if mouse is on a metric graph
-                    if (this.isBetween(this.overviewModel.mousePosition.x, metric.startX, metric.endX)) {
-                        found = this.checkAndSetSelectedGroup(metric);
+                    if (this.isBetween(this.overviewModel.mousePosition.x, marker.startX, marker.endX) &&
+                        this.isBetween(this.overviewModel.mousePosition.y, marker.startY, marker.endY)) {
+                        this.overviewCursor = "pointer";
+                        this.overviewModel.hoveredMarker = marker;
+                        break;
                     }
-                }
-
-                if (found) {
-                    break;
                 }
             }
         } else if (!this.focusAreaIsFixed) {
@@ -1019,6 +1017,23 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     setOverviewMousePosition(evt) {
         this.overviewModel.mousePosition = this.getMousePos(evt, this.focusAreaCanvas);
+    }
+
+    checkMouseIsOnGroupAndSetGroupSelected() {
+        for (var overviewIndex = 0; overviewIndex < this.overviewModel.metricList.length; ++overviewIndex) {
+            var metric = this.overviewModel.metricList[overviewIndex];
+
+            if (metric) {
+                // only check if mouse is on a metric graph
+                if (this.isBetween(this.overviewModel.mousePosition.x, metric.startX, metric.endX)) {
+                    if (this.checkAndSetSelectedGroup(metric)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     getMousePos(evt, canvas) {
@@ -1049,7 +1064,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             }
         }
 
-        this.overviewModel.hoveredGroup = null;
         return false;
     }
 
@@ -1069,35 +1083,40 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.setOverviewMousePosition(evt);
 
         if (this.isGrouped) {
-            this.checkAndAddGroupToFocus();
+            this.$timeout(() => {
+                if (this.overviewModel.hoveredGroup) {
+                    this.addOrRemoveGroupToFocus();
+                    this.drawSelectedGroupsMarkers();
+                } else if (this.overviewModel.hoveredMarker) {
+                    this.startFocusMarkerInterval(this.overviewModel.hoveredMarker.group);
+                } else {
+                    this.stopInterval();
+                }
+
+                this.drawFocusGraph();
+            });
         } else {
             this.fixFocusArea(evt);
         }
     }
 
-    checkAndAddGroupToFocus() {
-        if (this.overviewModel.hoveredGroup) {
-            this.$timeout(() => {
-                var focusGroup = _.find(this.focusModel.groupList, (search) => {
-                    return search.overviewGroup == this.overviewModel.hoveredGroup;
-                })
+    addOrRemoveGroupToFocus() {
+        var focusGroup = _.find(this.focusModel.groupList, (search) => {
+            return search.overviewGroup == this.overviewModel.hoveredGroup;
+        })
 
-                if (focusGroup) {
-                    this.overviewModel.hoveredGroup.isSelected = false;
+        if (focusGroup) {
+            this.overviewModel.hoveredGroup.isSelected = false;
 
-                    _.remove(this.focusModel.groupList, (group) => {
-                        return group.overviewGroup == this.overviewModel.hoveredGroup;
-                    });
-                } else {
-                    this.overviewModel.hoveredGroup.isSelected = true;
-                    this.addGroupToFocus();
-                }
-
-                this.scope.$apply();
-                this.drawSelectedGroupsMarkers();
-                this.drawFocusGraph();
-            })
+            _.remove(this.focusModel.groupList, (group) => {
+                return group.overviewGroup == this.overviewModel.hoveredGroup;
+            });
+        } else {
+            this.overviewModel.hoveredGroup.isSelected = true;
+            this.addGroupToFocus();
         }
+
+        this.scope.$apply();
     }
 
     addGroupToFocus() {
@@ -1119,7 +1138,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawSelectedGroupsMarkers() {
-        this.clearFocus();
+        this.clearFocusArea();
+        this.overviewModel.groupMarkerList = [];
 
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
             this.overviewModel.metricList.forEach((metric) => {
@@ -1137,10 +1157,92 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     drawOverviewGroupMarker(group, metricList) {
         if (group.isSelected) {
             metricList.forEach((metric) => {
-                var x = metric.startX - this.config.overview.marginBetweenMarkerAndGroup + group.markerX;
+                var marker = {};
+                marker.group = group;
+                marker.startX = metric.startX - this.config.overview.marginBetweenMarkerAndGroup + group.markerX;
+                marker.endX = marker.startX + this.config.overview.groupedPointHeight;
+                marker.startY = group.y;
+                marker.endY = marker.startY + this.config.overview.groupedPointHeight;
                 this.focusAreaContext.fillStyle = group.color;
-                this.focusAreaContext.fillRect(x, group.y, this.config.overview.groupedPointHeight, this.config.overview.groupedPointHeight);
+                this.focusAreaContext.fillRect(marker.startX, marker.startY, this.config.overview.groupedPointHeight, this.config.overview.groupedPointHeight);
+                this.overviewModel.groupMarkerList.push(marker);
             });
+        }
+    }
+
+    startFocusMarkerInterval(group) {
+        if (this.focusGroupWithInterval != group) {
+            this.stopInterval();
+            this.focusGroupWithInterval = group;
+            this.initialiseFocusMarkerInterval();
+        }
+    }
+
+    stopInterval() {
+        this.stopOverviewMarkerInterval();
+        this.stopFocusMarkerInterval();
+    }
+
+    stopOverviewMarkerInterval() {
+        if (this.currentOverviewMarkerInterval) {
+            this.$interval.cancel(this.currentOverviewMarkerInterval);
+
+            if (this.overviewGroupWithInterval) {
+                this.overviewGroupWithInterval.overviewMarkerX = 0;
+
+                this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
+                    overviewGroup.markerX = 0;
+                });
+
+                this.drawSelectedGroupsMarkers();
+            }
+
+            this.overviewGroupWithInterval = null;
+        }
+    }
+
+    stopFocusMarkerInterval() {
+        if (this.currentFocusMarkerInterval) {
+            this.$interval.cancel(this.currentFocusMarkerInterval);
+
+            if (this.focusGroupWithInterval) {
+                this.focusGroupWithInterval.focusMarkerX = 0;
+                this.focusGroupWithInterval = null;
+                this.drawGroupFocusMarkers();
+            }
+        }
+    }
+
+    initialiseFocusMarkerInterval() {
+        this.focusMarkerMovingBackwards = false;
+        this.focusGroupWithInterval.focusMarkerX = 0;
+
+        this.currentFocusMarkerInterval = this.$interval(() => {
+            if (this.focusMarkerMovingBackwards) {
+                this.handleFocusMarkerMovingBackwardCase();
+            } else {
+                this.handleFocusMarkerMovingForwardCase();
+            }
+
+            this.drawGroupFocusMarkers();
+        }, this.config.intervalTimer);
+    }
+
+    handleFocusMarkerMovingBackwardCase() {
+        if (this.focusGroupWithInterval.focusMarkerX == 0) {
+            this.focusMarkerMovingBackwards = false;
+            ++this.focusGroupWithInterval.focusMarkerX;
+        } else {
+            --this.focusGroupWithInterval.focusMarkerX;
+        }
+    }
+
+    handleFocusMarkerMovingForwardCase() {
+        if (this.focusGroupWithInterval.focusMarkerX == Math.round(this.config.focusGraph.marginBetweenMarkers / 2)) {
+            this.focusMarkerMovingBackwards = true;
+            --this.focusGroupWithInterval.focusMarkerX;
+        } else {
+            ++this.focusGroupWithInterval.focusMarkerX;
         }
     }
 
@@ -1191,7 +1293,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         if (offset >= 0) {
             if (doDrawLinkers) {
-                this.clearFocus();
+                this.clearFocusArea();
             }
 
             this.focusAreaContext.strokeStyle = this.config.focusArea.color;
@@ -1324,7 +1426,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     changeInstanceColor(metric, instance, index) {
         if (index == 0) {
-            this.clearFocus();
+            this.clearFocusArea();
         }
 
         instance.metricList[index].data.forEach((instancePoint, pointIndex) => {
@@ -1364,11 +1466,16 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
                 this.focusGraphWidth = (this.focusModel.focusedIndexList.length - 1) * this.getFocusGraphPointWidth();
                 this.scope.$apply();
-                this.focusModel.focusRowHeight = this.getElementByID("focusGraphRow").offsetHeight;
-                this.setFocusFromAndToDate();
-                this.positionFocusFromAndToDate();
-                this.drawFocusGraphData();
-                this.autoSrollFocusGraph();
+
+                var focusGraphRow = this.getElementByID("focusGraphRow");
+
+                if (focusGraphRow) {
+                    this.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
+                    this.setFocusFromAndToDate();
+                    this.positionFocusFromAndToDate();
+                    this.drawFocusGraphData();
+                    this.autoSrollFocusGraph();
+                }
             });
         } else {
             this.showFocus = false;
@@ -1518,19 +1625,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 this.focusGraphMarkerHeight = this.config.focusGraph.markerSize;
                 this.scope.$apply();
-                this.drawGroupedFocusMarkerAndGraph();
+                this.drawGroupFocusMarkers();
+                this.drawGroupedFocusGraph();
             });
         } else {
             this.drawUngroupedFocusGraph();
         }
     }
 
-    drawGroupedFocusMarkerAndGraph() {
+    drawGroupFocusMarkers() {
         this.focusModel.groupList.forEach((group, groupIndex) => {
             group.instanceList.forEach((instance, instanceIndex) => {
                 if (instanceIndex == 0 || group.showDetails) {
                     this.drawGroupedFocusMarker(group, groupIndex, instance, instanceIndex);
-                    this.drawGroupedFocusGraph(groupIndex, instance, instanceIndex);
                 }
             });
         });
@@ -1548,20 +1655,34 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 if (instanceGroup.isSelected) {
                     instance.groupWithMarkerList.push(instanceGroup);
                     var x = (this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers) * instanceGroupIndex;
-                    this.drawGroupedFocusMarkerWrapper(context, instanceGroup.color, x);
+                    this.drawGroupedFocusMarkerWrapper(context, instanceGroup, x);
                 }
             });
         } else {
-            this.drawGroupedFocusMarkerWrapper(context, group.overviewGroup.color, 0);
+            this.drawGroupedFocusMarkerWrapper(context, group.overviewGroup, 0);
         }
     }
 
-    drawGroupedFocusMarkerWrapper(context, color, x) {
-        context.fillStyle = color;
+    drawGroupedFocusMarkerWrapper(context, group, x) {
+        if (group == this.focusGroupWithInterval) {
+            x += this.focusGroupWithInterval.focusMarkerX;
+        }
+
+        context.fillStyle = group.color;
         context.fillRect(x, 0, this.config.focusGraph.markerSize, this.config.focusGraph.markerSize);
     }
 
-    drawGroupedFocusGraph(groupIndex, instance, instanceIndex) {
+    drawGroupedFocusGraph() {
+        this.focusModel.groupList.forEach((group, groupIndex) => {
+            group.instanceList.forEach((instance, instanceIndex) => {
+                if (instanceIndex == 0 || group.showDetails) {
+                    this.drawGroupedFocusGraphWrapper(groupIndex, instance, instanceIndex);
+                }
+            });
+        });
+    }
+
+    drawGroupedFocusGraphWrapper(groupIndex, instance, instanceIndex) {
         var canvas = this.getElementByID("focusGraphCanvas-" + groupIndex + "-" + instanceIndex);
         var context = this.getCanvasContext(canvas);
         context.clearRect(0, 0, canvas.width, canvas.height);
@@ -1664,76 +1785,55 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     moveMouseOnFocusGroup(group, instance) {
         if (this.groupingMode == this.enumList.groupingMode.MULTIPLE || !group.showDetails) {
             this.focusModel.overviewGroupWithIntervalList = [group.overviewGroup];
-            this.startMarkerMovingInterval(group);
+            this.startOverviewMarkerInterval(group);
         } else {
             this.focusModel.overviewGroupWithIntervalList = instance.groupWithMarkerList;
-            this.startMarkerMovingInterval(group);
+            this.startOverviewMarkerInterval(group);
         }
     }
 
-    startMarkerMovingInterval(group) {
-        if (this.focusModel.groupWithInterval != group) {
+    startOverviewMarkerInterval(group) {
+        if (this.overviewGroupWithInterval != group) {
             this.stopInterval();
-            this.focusModel.groupWithInterval = group;
-            this.initialiseInterval();
+            this.overviewGroupWithInterval = group;
+            this.initialiseOverviewMarkerInterval();
         }
     }
 
-    stopInterval() {
-        if (this.currentInterval) {
-            this.$interval.cancel(this.currentInterval);
+    initialiseOverviewMarkerInterval() {
+        this.overviewMarkerMovingBackwards = false;
+        this.overviewGroupWithInterval.overviewMarkerX = 0;
 
-            if (this.focusModel.groupWithInterval) {
-                this.focusModel.groupWithInterval.markerX = 0;
-                this.focusModel.groupWithInterval = null;
-
-                this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
-                    overviewGroup.markerX = 0;
-                });
-
-                this.drawSelectedGroupsMarkers();
-            }
-        }
-    }
-
-    stopCurrentInterval() {
-        this.stopInterval();
-    }
-
-    initialiseInterval() {
-        this.focusModel.markerMovingBackwards = false;
-        this.focusModel.groupWithInterval.markerX = 0;
-
-        this.currentInterval = this.$interval(() => {
-            if (this.focusModel.markerMovingBackwards) {
-                this.handleMarkerMovingBackwardCase();
+        this.currentOverviewMarkerInterval = this.$interval(() => {
+            if (this.overviewMarkerMovingBackwards) {
+                this.handleOverviewMarkerMovingBackwardCase();
             } else {
-                this.handleMarkerMovingForwardCase();
+                this.handleOverviewMarkerMovingForwardCase();
             }
 
             this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
-                overviewGroup.markerX = this.focusModel.groupWithInterval.markerX;
+                overviewGroup.markerX = this.overviewGroupWithInterval.overviewMarkerX;
             });
 
             this.drawSelectedGroupsMarkers();
-        }, this.config.focusArea.intervalTimer);
+        }, this.config.intervalTimer);
     }
 
-    handleMarkerMovingBackwardCase() {
-        if (this.focusModel.groupWithInterval.markerX == 0) {
-            this.focusModel.markerMovingBackwards = false;
-            ++this.focusModel.groupWithInterval.markerX;
+    handleOverviewMarkerMovingBackwardCase() {
+        if (this.overviewGroupWithInterval.overviewMarkerX == 0) {
+            this.overviewMarkerMovingBackwards = false;
+            ++this.overviewGroupWithInterval.overviewMarkerX;
         } else {
-            --this.focusModel.groupWithInterval.markerX;
+            --this.overviewGroupWithInterval.overviewMarkerX;
         }
     }
 
-    handleMarkerMovingForwardCase() {
-        if (this.focusModel.groupWithInterval.markerX == Math.round(this.config.overview.marginBetweenMarkerAndGroup / 2)) {
-            this.focusModel.markerMovingBackwards = true;
-            --this.focusModel.groupWithInterval.markerX;
+    handleOverviewMarkerMovingForwardCase() {
+        if (this.overviewGroupWithInterval.overviewMarkerX == Math.round(this.config.overview.marginBetweenMarkerAndGroup / 2)) {
+            this.overviewMarkerMovingBackwards = true;
+            --this.overviewGroupWithInterval.overviewMarkerX;
         } else {
-            ++this.focusModel.groupWithInterval.markerX;
+            ++this.overviewGroupWithInterval.overviewMarkerX;
         }
     }
 
