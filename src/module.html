@@ -32,6 +32,10 @@
         <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
             height="{{ctrl.overviewCanvasHeight}}"></canvas>
 
+        <canvas id="timeIndicatorCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
+            height="{{ctrl.overviewCanvasHeight}}" ng-mousemove="ctrl.moveMouseOnOverview($event)"
+            ng-click="ctrl.clickOnOverView($event)"></canvas>
+
         <canvas id="focusAreaCanvas" style="position: absolute; cursor: {{ctrl.overviewCursor}}"
             width="{{ctrl.overviewCanvasWidth}}" height="{{ctrl.overviewCanvasHeight}}"
             ng-mousemove="ctrl.moveMouseOnOverview($event)" ng-click="ctrl.clickOnOverView($event)"></canvas>

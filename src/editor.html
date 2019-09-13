@@ -9,16 +9,22 @@
         </td>
 
         <td class="centeredCell">
-            <b>
-                Name:
-            </b>
+            <input type="checkbox" ng-model="metric.isCustom">
 
-            <input ng-model="metric.name" style="margin-left: 5px">
+            custom metric
         </td>
 
-        <td class="centeredCell">
+        <td ng-show="metric.isCustom" class="centeredCell">
             <table>
                 <tr>
+                    <td class="centeredCell">
+                        <b>
+                            Name:
+                        </b>
+
+                        <input ng-model="metric.name" style="margin-left: 5px">
+                    </td>
+
                     <td class="centeredCell">
                         <b>
                             Query:
@@ -33,16 +39,18 @@
             </table>
         </td>
 
+        <td ng-hide="metric.isCustom" class="centeredCell">
+            <select ng-model="metric.name" ng-change="ctrl.selectPredefinedMetric($index)">
+                <option ng-repeat="predefinedMetric in ctrl.predefinedMetricOptionList">{{predefinedMetric}}</option>
+            </select>
+        </td>
+
         <td class="centeredCell">
             <b>
-                Color scheme:
+                Color:
             </b>
 
-            <br>
-
-            <div ng-repeat="color in metric.colorList" style="margin-top: 5px">
-                <input type="color" ng-model="color.value">
-            </div>
+            <input type="color" ng-model="metric.color">
         </td>
     </tr>
 </table>
