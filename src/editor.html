@@ -2,8 +2,9 @@
     Metric list:
 </div>
 
-<table style="margin-left: 20px; border-collapse: separate; border-spacing: 1em">
-    <tr ng-repeat="metric in ctrl.panel.metricList">
+<table ng-repeat="metric in ctrl.panel.metricList"
+    style="margin-left: 20px; border-collapse: separate; border-spacing: 1em">
+    <tr>
         <td class="centeredCell">
             <button ng-click="ctrl.removeMetric(metric)">Remove</button>
         </td>
@@ -14,8 +15,8 @@
             custom metric
         </td>
 
-        <td ng-show="metric.isCustom" class="centeredCell">
-            <table>
+        <td class="centeredCell">
+            <table ng-show="metric.isCustom">
                 <tr>
                     <td class="centeredCell">
                         <b>
@@ -37,14 +38,11 @@
                     </td>
                 </tr>
             </table>
-        </td>
 
-        <td ng-hide="metric.isCustom" class="centeredCell">
-            <select ng-model="metric.name" ng-change="ctrl.selectPredefinedMetric($index)">
+            <select ng-hide="metric.isCustom" ng-model="metric.name" ng-change="ctrl.selectPredefinedMetric($index)">
                 <option ng-repeat="predefinedMetric in ctrl.predefinedMetricOptionList">{{predefinedMetric}}</option>
             </select>
         </td>
-
         <td class="centeredCell">
             <b>
                 Color:

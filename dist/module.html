@@ -24,6 +24,11 @@
                 <button ng-click="ctrl.groupUngroup()"
                     style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
             </td>
+
+            <td style="padding-left: 10px">
+                <button ng-click="ctrl.compressDecompress()"
+                    style="width:120px">{{ctrl.isCompressed ? "Decompress" : "Compress"}} time</button>
+            </td>
         </tr>
     </table>
 
@@ -33,8 +38,7 @@
             height="{{ctrl.overviewCanvasHeight}}"></canvas>
 
         <canvas id="timeIndicatorCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
-            height="{{ctrl.overviewCanvasHeight}}" ng-mousemove="ctrl.moveMouseOnOverview($event)"
-            ng-click="ctrl.clickOnOverView($event)"></canvas>
+            height="{{ctrl.overviewCanvasHeight}}"></canvas>
 
         <canvas id="focusAreaCanvas" style="position: absolute; cursor: {{ctrl.overviewCursor}}"
             width="{{ctrl.overviewCanvasWidth}}" height="{{ctrl.overviewCanvasHeight}}"
