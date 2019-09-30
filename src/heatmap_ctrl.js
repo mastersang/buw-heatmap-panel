@@ -44,6 +44,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.initialiseOverviewConfig();
         this.initialiseFocusAreaConfig();
+        this.initialiseTimeIndicatorConfig()
         this.initialiseFocusGraphConfig();
     }
 
@@ -53,12 +54,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             metricFontSize: 12,
             timeFontSize: 10,
             marginBetweenLabelsAndOverview: 10,
-            decompressedPointWidth: 1,
-            compressedPointWidth: 1,
+            pointWidth: 1,
             ungroupedPointHeight: 1,
             groupedPointHeight: 5,
-            verticalMarginBetweenMetrics: 2,
-            horizontalMarginBetweenMetrics: 30,
+            compressedMarginBetweenMetrics: 100,
+            decompressedMarginBetweenMetrics: 30,
             marginBetweenGroups: 10,
             groupBarWidth: 9,
             singleAttributeGroupSizeWidth: 1,
@@ -76,11 +76,17 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
+    initialiseTimeIndicatorConfig() {
+        this.config.timeIndicator = {
+            color: "DarkGray"
+        }
+    }
+
     initialiseFocusGraphConfig() {
         this.config.focusGraph = {
             maxWidth: 10000,
             maxHeight: 10000,
-            groupedPointWidth: 3,
+            groupedPointWidth: 4,
             ungroupedPointWidth: 20,
             metricMaxHeight: 30,
             marginBetweenMetrics: 10,
@@ -189,20 +195,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseControl() {
         this.enumList = {
-            linkingMode: {
-                X_CROSS: "1",
-                NORMAL_CROSS: "2",
-                CHANGE_COLOR: "3",
-            },
-
             groupingMode: {
                 SINGLE: "1",
                 MULTIPLE: "2",
+            },
+
+            timeHighlightMode: {
+                POINT: "1",
+                RANGE: "2"
             }
         };
 
-        this.linkingMode = this.enumList.linkingMode.X_CROSS;
         this.groupingMode = this.enumList.groupingMode.SINGLE;
+        this.timeHighlightMode = this.enumList.timeHighlightMode.POINT;
         this.isGrouped = true;
         this.initialiseOverviewCanvasCursor();
     }
@@ -221,8 +226,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.focusAreaContext = this.getCanvasContext(this.focusAreaCanvas);
 
         // overview time indicator
-        this.timeIndicatorCanvas = this.getElementByID("timeIndicatorCanvas");
-        this.timeIndicatorContext = this.getCanvasContext(this.timeIndicatorCanvas);
+        this.overviewTimeIndicatorCanvas = this.getElementByID("overviewTimeIndicatorCanvas");
+        this.overviewTimeIndicatorContext = this.getCanvasContext(this.overviewTimeIndicatorCanvas);
+
+        // focus graph time indicator
+        this.focusGraphTimeIndicatorCanvas = this.getElementByID("focusGraphTimeIndicatorCanvas");
+        this.focusGraphTimeIndicatorContext = this.getCanvasContext(this.focusGraphTimeIndicatorCanvas);
 
         // focus graph
         this.focusGraphWidth = this.config.focusGraph.maxWidth;
@@ -684,16 +693,17 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.setOverviewContextTimeFont();
         this.overviewModel.toDate = this.getDateString(this.toDate * 1000);
         this.overviewModel.toDateWidth = this.overviewContext.measureText(this.overviewModel.toDate).width;
+        var marginBetweenMetrics = this.isCompressed ? this.config.overview.compressedMarginBetweenMetrics : this.config.overview.decompressedMarginBetweenMetrics;
         this.overviewModel.overviewWidth = this.config.overview.marginBetweenMarkerAndGroup * this.overviewModel.metricList.length +
-            this.config.overview.horizontalMarginBetweenMetrics * (this.overviewModel.metricList.length - 1);
+            marginBetweenMetrics * (this.overviewModel.metricList.length - 1);
 
         // total width of overiew graph (groupsize excluded)
         if (this.isCompressed) {
             this.overviewModel.metricList.forEach((metric) => {
-                this.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * this.config.overview.compressedPointWidth;
+                this.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * this.config.overview.pointWidth;
             });
         } else {
-            this.overviewModel.overviewWidth += this.getMaxMetricLength() * this.overviewModel.metricList.length * this.config.overview.decompressedPointWidth;
+            this.overviewModel.overviewWidth += this.getMaxMetricLength() * this.overviewModel.metricList.length * this.config.overview.pointWidth;
         }
 
         this.overviewCanvasWidth = this.overviewModel.overviewWidth;
@@ -803,10 +813,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     setOverviewMetricStartXAndEndX() {
+        var marginBetweenMetrics = this.isCompressed ? this.config.overview.compressedMarginBetweenMetrics : this.config.overview.decompressedMarginBetweenMetrics;
+
         this.overviewModel.metricList.forEach((metric, index) => {
             if (index > 0) {
                 var previousMetric = this.overviewModel.metricList[index - 1];
-                metric.startX = previousMetric.endX + this.config.overview.horizontalMarginBetweenMetrics;
+                metric.startX = previousMetric.endX + marginBetweenMetrics;
 
                 if (this.isGrouped) {
                     metric.startX += this.config.overview.marginBetweenMarkerAndGroup;
@@ -821,9 +833,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             }
 
             if (this.isCompressed) {
-                metric.endX = metric.startX + metric.compressedTimeIndexList.length * this.config.overview.compressedPointWidth;
+                metric.endX = metric.startX + metric.compressedTimeIndexList.length * this.config.overview.pointWidth;
             } else {
-                metric.endX = metric.startX + this.getMaxMetricLength() * this.config.overview.decompressedPointWidth;
+                metric.endX = metric.startX + this.getMaxMetricLength() * this.config.overview.pointWidth;
             }
         });
     }
@@ -836,16 +848,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 metric.groupList.forEach((group, groupIndex) => {
                     this.drawGroupOverviewWrapper(group, groupIndex, [metricIndex]);
                 });
+
+                this.drawMetricSeparator(metric);
             });
         } else {
             this.overviewModel.groupList.forEach((group, groupIndex) => {
                 var metricIndexList = this.getAllMetricIndexList();
                 this.drawGroupOverviewWrapper(group, groupIndex, metricIndexList);
             });
+
+            this.drawMetricSeparator(this.overviewModel.metricList[this.overviewModel.metricList.length - 1]);
         }
 
         this.drawGroupSize();
-        this.drawMetricSeparator();
     }
 
     drawGroupOverviewWrapper(group, groupIndex, metricIndexList) {
@@ -876,12 +891,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 var point = instanceMetric.data[pointIndex];
 
                 if (point) {
-                    this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, this.config.overview.compressedPointWidth, pointHeight);
+                    this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, this.config.overview.pointWidth, pointHeight);
                 }
             });
         } else {
             instanceMetric.data.forEach((point, pointIndex) => {
-                this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, this.config.overview.decompressedPointWidth, pointHeight);
+                this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, this.config.overview.pointWidth, pointHeight);
             });
         }
     }
@@ -952,7 +967,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawMultipleAttributeGroupSize(labelWidth) {
-        var startX = this.overviewModel.overviewWidth + this.config.overview.horizontalMarginBetweenMetrics;
+        var startX = this.overviewModel.overviewWidth + this.config.overview.decompressedMarginBetweenMetrics;
         var maxEndX = 0;
 
         this.overviewModel.groupList.forEach((group, groupIndex) => {
@@ -967,24 +982,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewContext.fillText("Groups size", (startX + maxEndX - labelWidth) / 2, this.overviewModel.labelTextHeight);
     }
 
-    drawMetricSeparator() {
+    drawMetricSeparator(metric) {
         this.overviewContext.strokeStyle = "gray";
+        var x = metric.endX + this.config.overview.decompressedMarginBetweenMetrics / 2;
 
-        for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
-            var metric = this.overviewModel.metricList[i];
-            var x = metric.endX + this.config.overview.horizontalMarginBetweenMetrics / 2;
-
-            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-                var maxGroupSizeBarLength = this.getMaxGroupSizeBarLength(metric);
-                x += this.config.overview.marginBetweenMetricAndGroupSize + maxGroupSizeBarLength;
-            }
-
-            this.overviewContext.beginPath();
-            this.overviewContext.moveTo(x, this.overviewModel.overviewStartY);
-            this.overviewContext.lineTo(x, this.overviewModel.overviewStartY + this.overviewModel.overviewHeight);
-            this.overviewContext.stroke();
-            this.overviewContext.closePath();
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+            var maxGroupSizeBarLength = this.getMaxGroupSizeBarLength(metric);
+            x += this.config.overview.marginBetweenMetricAndGroupSize + maxGroupSizeBarLength;
         }
+
+        this.overviewContext.beginPath();
+        this.overviewContext.moveTo(x, this.overviewModel.overviewStartY);
+        this.overviewContext.lineTo(x, this.overviewModel.overviewStartY + this.overviewModel.overviewHeight);
+        this.overviewContext.stroke();
+        this.overviewContext.closePath();
     }
 
     drawUngroupedOverview() {
@@ -995,12 +1006,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.drawOverviewInstance(instance, instanceIndex, this.config.overview.ungroupedPointHeight, 0, metricIndexList);
         });
 
-        this.drawGroupBars();
+        if (!this.isCompressed) {
+            this.drawGroupBars();
+        }
     }
 
     drawGroupBars() {
         for (var i = 1; i < this.overviewModel.metricList.length; ++i) {
-            var x = this.overviewModel.metricList[i].startX - this.config.overview.horizontalMarginBetweenMetrics / 2;
+            var x = this.overviewModel.metricList[i].startX - this.config.overview.decompressedMarginBetweenMetrics / 2;
             this.drawGroupBarAtPosition(x);
         }
     }
@@ -1049,10 +1062,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.drawOverview();
     }
 
-    selectLinker() {
-        this.drawFocusArea();
-    }
-
     selectGroupingMode() {
         this.changeGroupingSelection();
     }
@@ -1087,6 +1096,36 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.clearFocusArea();
     }
 
+    selectTimeHighlightMode() {
+        this.clearTimeIndicator();
+
+        if (this.overviewModel.groupList) {
+            this.overviewModel.groupList.forEach((group) => {
+                group.timeRangeIndexList = [];
+            });
+        }
+
+        if (this.overviewModel.metricList) {
+            this.overviewModel.metricList.forEach((metric) => {
+                metric.groupList.forEach((group) => {
+                    group.timeRangeIndexList = [];
+                });
+            });
+        }
+    }
+
+    clearTimeIndicator() {
+        this.overviewTimeIndicatorContext.clearRect(0, 0, this.overviewTimeIndicatorCanvas.width, this.overviewTimeIndicatorCanvas.height);
+    }
+
+    mouseDownOnOverview(evt) {
+        if (this.isGrouped && this.overviewModel.hoveredGroup && this.timeHighlightMode == this.enumList.timeHighlightMode.RANGE) {
+            this.overviewModel.isSelectingTimeRange = true;
+            this.overviewModel.timeRangeStartOffset = this.overviewModel.mousePositionXOffset;
+            this.overviewModel.timeRangeGroup = this.overviewModel.hoveredGroup;
+        }
+    }
+
     moveMouseOnOverview(evt) {
         this.setOverviewMousePosition(evt);
 
@@ -1094,13 +1133,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.initialiseOverviewCanvasCursor();
             this.overviewModel.hoveredGroup = null;
             this.overviewModel.hoveredMarker = null;
-            var found = this.checkMouseIsOnGroupAndSetGroupSelected();
+            this.checkAndSetSelectedOverviewMarker();
+            this.checkMouseIsOnGroupAndSetHoveredGroup();
 
-            if (found) {
-                this.drawTimeIndicators();
-            } else {
-                this.clearTimeIndicator();
-                this.checkAndSetSelectedOverviewMarker();
+            if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
+                if (this.overviewModel.hoveredGroup) {
+                    this.drawTimeIndicators();
+                } else {
+                    this.clearTimeIndicator();
+                }
+            } else if (this.overviewModel.isSelectingTimeRange) {
+                this.initialiseSelectedGroupTimeRangeIndexList();
+                this.drawSelectedTimeRanges();
             }
         } else if (!this.isCompressed && !this.focusAreaIsFixed) {
             this.drawFocus(evt);
@@ -1120,32 +1164,30 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         };
     }
 
-    checkMouseIsOnGroupAndSetGroupSelected() {
-        for (var overviewIndex = 0; overviewIndex < this.overviewModel.metricList.length; ++overviewIndex) {
-            var metric = this.overviewModel.metricList[overviewIndex];
+    checkMouseIsOnGroupAndSetHoveredGroup() {
+        for (var metricIndex = 0; metricIndex < this.overviewModel.metricList.length; ++metricIndex) {
+            var metric = this.overviewModel.metricList[metricIndex];
 
             if (metric) {
                 // only check if mouse is on a metric graph
                 if (this.isBetween(this.overviewModel.mousePosition.x, metric.startX, metric.endX)) {
-                    this.overviewModel.selectedMetric = metric;
+                    this.overviewModel.selectedMetricIndex = metricIndex;
                     this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
 
-                    if (this.checkAndSetSelectedGroup(metric)) {
-                        return true;
+                    if (this.checkAndSetHoveredGroup(metric)) {
+                        return;
                     }
                 }
             }
         }
-
-        return false;
     }
 
-    checkAndSetSelectedGroup(metric) {
+    checkAndSetHoveredGroup(metric) {
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
             for (var i = 0; i < metric.groupList.length; ++i) {
                 var group = metric.groupList[i];
 
-                if (this.checkGroupIsSelected(group)) {
+                if (this.checkGroupIsHovered(group)) {
                     return true;
                 }
             }
@@ -1153,7 +1195,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             for (var i = 0; i < this.overviewModel.groupList.length; ++i) {
                 var group = this.overviewModel.groupList[i];
 
-                if (this.checkGroupIsSelected(group)) {
+                if (this.checkGroupIsHovered(group)) {
                     return true;
                 }
             }
@@ -1162,7 +1204,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return false;
     }
 
-    checkGroupIsSelected(group) {
+    checkGroupIsHovered(group) {
         if (this.isBetween(this.overviewModel.mousePosition.y, group.y, group.y + this.config.overview.groupedPointHeight)) {
             this.overviewModel.hoveredGroup = group;
             this.overviewCursor = "pointer";
@@ -1178,17 +1220,17 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.isBetween(this.overviewModel.mousePosition.y, marker.startY, marker.endY)) {
                 this.overviewCursor = "pointer";
                 this.overviewModel.hoveredMarker = marker;
-                break;
+                return;
             }
         }
     }
 
     drawTimeIndicators() {
         this.clearTimeIndicator();
-        this.timeIndicatorContext.strokeStyle = "black";
+        this.overviewTimeIndicatorContext.strokeStyle = this.config.timeIndicator.color;
 
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-            this.drawTimeIndicatorWrapper(this.overviewModel.selectedMetric);
+            this.drawTimeIndicatorWrapper(this.overviewModel.metricList[this.overviewModel.selectedMetricIndex]);
         } else {
             this.overviewModel.metricList.forEach((metric) => {
                 this.drawTimeIndicatorWrapper(metric);
@@ -1199,25 +1241,27 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawTimeIndicatorWrapper(metric) {
-        // horizontal line
-        var horizontalLineY = this.overviewModel.hoveredGroup.y - this.config.overview.marginBetweenGroups / 2;
-        this.timeIndicatorContext.beginPath();
-        this.timeIndicatorContext.moveTo(metric.startX, horizontalLineY);
-        this.timeIndicatorContext.lineTo(metric.endX, horizontalLineY);
-        this.timeIndicatorContext.stroke();
-        this.timeIndicatorContext.closePath();
-
-        // vertical line
-        var verticalLineX = metric.startX + this.overviewModel.mousePositionXOffset
-        this.timeIndicatorContext.beginPath();
-        this.timeIndicatorContext.moveTo(verticalLineX, horizontalLineY);
-        this.timeIndicatorContext.lineTo(verticalLineX, this.overviewModel.hoveredGroup.y);
-        this.timeIndicatorContext.stroke();
-        this.timeIndicatorContext.closePath();
+        var horizontalLineY = this.drawHorizontalTimeLine(metric, this.overviewModel.hoveredGroup);
+        this.drawSelectedTimePoint(metric, horizontalLineY);
     }
 
-    clearTimeIndicator() {
-        this.timeIndicatorContext.clearRect(0, 0, this.timeIndicatorCanvas.width, this.timeIndicatorCanvas.height);
+    drawHorizontalTimeLine(metric, group) {
+        var horizontalLineY = group.y - this.config.overview.marginBetweenGroups / 2;
+        this.overviewTimeIndicatorContext.beginPath();
+        this.overviewTimeIndicatorContext.moveTo(metric.startX, horizontalLineY);
+        this.overviewTimeIndicatorContext.lineTo(metric.endX, horizontalLineY);
+        this.overviewTimeIndicatorContext.stroke();
+        this.overviewTimeIndicatorContext.closePath();
+        return horizontalLineY;
+    }
+
+    drawSelectedTimePoint(metric, horizontalLineY) {
+        var verticalLineX = metric.startX + this.overviewModel.mousePositionXOffset;
+        this.overviewTimeIndicatorContext.beginPath();
+        this.overviewTimeIndicatorContext.moveTo(verticalLineX, horizontalLineY);
+        this.overviewTimeIndicatorContext.lineTo(verticalLineX, this.overviewModel.hoveredGroup.y);
+        this.overviewTimeIndicatorContext.stroke();
+        this.overviewTimeIndicatorContext.closePath();
     }
 
     drawSelectedTimeLabel() {
@@ -1229,7 +1273,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
                     var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
 
-                    if (this.checkSelectedPointAndDrawTimeLabel(point, this.config.overview.compressedPointWidth)) {
+                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, this.config.overview.pointWidth)) {
                         return;
                     }
                 }
@@ -1237,7 +1281,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 for (var compressedTimeIndex = 0; compressedTimeIndex < instanceMetric.data.length; ++compressedTimeIndex) {
                     var point = instanceMetric.data[compressedTimeIndex];
 
-                    if (this.checkSelectedPointAndDrawTimeLabel(point, this.config.overview.decompressedPointWidth)) {
+                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, this.config.overview.pointWidth)) {
                         return;
                     }
                 }
@@ -1245,66 +1289,144 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    checkSelectedPointAndDrawTimeLabel(point, pointWidth) {
+    checkDataPointIsSelectedAndDrawTimeLabel(point, pointWidth) {
         if (this.isBetween(this.overviewModel.mousePosition.x, point.x, point.x + pointWidth)) {
-            this.timeIndicatorContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
-            this.timeIndicatorContext.fillStyle = "black";
+            this.overviewTimeIndicatorContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
+            this.overviewTimeIndicatorContext.fillStyle = "black";
             var date = this.getDateString(point.date * 1000);
             var y = this.overviewModel.overviewStartY + this.overviewModel.overviewHeight + this.config.overview.marginBetweenLabelsAndOverview;
             var x = Math.max(0, this.overviewModel.mousePosition.x - this.overviewModel.toDateWidth / 2);
-            this.timeIndicatorContext.fillText(date, x, y);
+            this.overviewTimeIndicatorContext.fillText(date, x, y);
             return true;
         } else {
             return false;
         }
     }
 
-    clickOnOverView(evt) {
-        this.setOverviewMousePosition(evt);
+    initialiseSelectedGroupTimeRangeIndexList() {
+        this.overviewModel.timeRangeGroup.timeRangeMetricIndex = this.overviewModel.selectedMetricIndex;
+        this.overviewModel.timeRangeGroup.timeRangeIndexList = [];
+        var instanceMetric = this.overviewModel.timeRangeGroup.instanceList[0].metricList[this.overviewModel.selectedMetricIndex];
+        var overviewMetric = this.overviewModel.metricList[this.overviewModel.selectedMetricIndex];
+        var startX = overviewMetric.startX + this.overviewModel.timeRangeStartOffset;
+        var endX = overviewMetric.startX + this.overviewModel.mousePositionXOffset;
 
-        if (this.isGrouped) {
-            this.$timeout(() => {
-                if (this.overviewModel.hoveredGroup) {
-                    this.addOrRemoveGroupToFocus();
-                    this.drawSelectedGroupsMarkers();
-                } else if (this.overviewModel.hoveredMarker) {
-                    this.startFocusMarkerInterval(this.overviewModel.hoveredMarker.group);
-                } else {
-                    this.stopInterval();
-                }
+        if (startX > endX) {
+            var temp = startX;
+            startX = endX;
+            endX = temp;
+        }
 
-                this.drawFocusGraph();
+        instanceMetric.data.forEach((point, pointIndex) => {
+            if (this.isBetween(point.x, startX, endX)) {
+                this.overviewModel.timeRangeGroup.timeRangeIndexList.push(pointIndex);
+            }
+        });
+    }
+
+    drawSelectedTimeRanges() {
+        this.clearTimeIndicator();
+        this.overviewTimeIndicatorContext.strokeStyle = this.config.timeIndicator.color;
+        this.overviewTimeIndicatorContext.fillStyle = this.config.timeIndicator.color;
+
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+            this.overviewModel.metricList.forEach((metric) => {
+                metric.groupList.forEach((group) => {
+                    this.drawSelectedTimeRangeWrapper(group, [group.timeRangeMetricIndex]);
+                });
             });
+        } else {
+            this.overviewModel.groupList.forEach((group) => {
+                this.drawSelectedTimeRangeWrapper(group, Array.from(Array(this.overviewModel.metricList.length).keys()));
+            });
+        }
+    }
+
+    drawSelectedTimeRangeWrapper(group, metricIndexList) {
+        if (group.timeRangeIndexList && group.timeRangeIndexList.length > 0) {
+            metricIndexList.forEach((metricIndex) => {
+                var instanceMetric = group.instanceList[0].metricList[metricIndex];
+                var startPoint = instanceMetric.data[group.timeRangeIndexList[0]];
+
+                if (startPoint) {
+                    var overviewMetric = this.overviewModel.metricList[metricIndex];
+                    var startY = this.drawHorizontalTimeLine(overviewMetric, group);
+                    var endIndex = group.timeRangeIndexList[group.timeRangeIndexList.length - 1];
+                    var startX = startPoint.x;
+                    var endX = instanceMetric.data[endIndex].x + this.config.overview.pointWidth;
+                    var width = endX - startX;
+                    var height = group.y - startY;
+                    this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
+                }
+            });
+        }
+    }
+
+    mouseUpOnOverView(evt) {
+        if (this.isGrouped) {
+            if (this.overviewModel.hoveredMarker) {
+                this.startFocusMarkerInterval(this.overviewModel.hoveredMarker.group);
+            } else {
+                this.updateSelectedGroupListAndDrawFocusGraph();
+            }
         } else if (!this.isCompressed) {
             this.fixFocusArea(evt);
         }
     }
 
-    addOrRemoveGroupToFocus() {
+    updateSelectedGroupListAndDrawFocusGraph() {
+        this.$timeout(() => {
+            var updatedSelectedGroups = false;
+
+            if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
+                if (this.overviewModel.hoveredGroup) {
+                    this.addOrRemoveGroupToFocus(this.overviewModel.hoveredGroup, true);
+                    updatedSelectedGroups = true;
+                } else {
+                    this.stopInterval();
+                }
+            } else if (this.overviewModel.isSelectingTimeRange) {
+                var removeExisting = this.overviewModel.timeRangeStartOffset == this.overviewModel.mousePositionXOffset;
+                this.addOrRemoveGroupToFocus(this.overviewModel.timeRangeGroup, removeExisting);
+                updatedSelectedGroups = true;
+            }
+
+            this.scope.$apply();
+
+            if (updatedSelectedGroups) {
+                this.drawSelectedGroupsMarkers();
+                this.drawFocusGraph();
+            }
+
+            this.overviewModel.isSelectingTimeRange = false;
+        });
+    }
+
+    addOrRemoveGroupToFocus(group, removeExisting) {
         var focusGroup = _.find(this.focusModel.groupList, (search) => {
-            return search.overviewGroup == this.overviewModel.hoveredGroup;
+            return search.overviewGroup == group;
         })
 
         if (focusGroup) {
-            this.overviewModel.hoveredGroup.isSelected = false;
+            if (removeExisting) {
+                group.isSelected = false;
 
-            _.remove(this.focusModel.groupList, (group) => {
-                return group.overviewGroup == this.overviewModel.hoveredGroup;
-            });
+                _.remove(this.focusModel.groupList, (search) => {
+                    return search.overviewGroup == group;
+                });
+            }
         } else {
-            this.overviewModel.hoveredGroup.isSelected = true;
-            this.addGroupToFocus();
+            group.isSelected = true;
+            this.addGroupToFocus(group);
         }
-
-        this.scope.$apply();
     }
 
-    addGroupToFocus() {
+    addGroupToFocus(group) {
         var focusGroup = {};
         focusGroup.instanceList = [];
-        focusGroup.overviewGroup = this.overviewModel.hoveredGroup;
+        focusGroup.overviewGroup = group;
 
-        this.overviewModel.hoveredGroup.instanceList.forEach((overviewInstance) => {
+        group.instanceList.forEach((overviewInstance) => {
             var metricWithMostData = _.maxBy(overviewInstance.metricList, (metric) => {
                 return metric.data.length;
             });
@@ -1315,6 +1437,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
 
         this.focusModel.groupList.push(focusGroup);
+    }
+
+    getFocusInstance(overviewInstance, indexList) {
+        var focusInstance = {};
+        focusInstance.instance = overviewInstance.instance;
+        focusInstance.overviewInstance = overviewInstance;
+        this.initialiseFocusInstanceData(focusInstance, overviewInstance, indexList);
+        return focusInstance;
     }
 
     drawSelectedGroupsMarkers() {
@@ -1370,9 +1500,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (this.overviewGroupWithInterval) {
                 this.overviewGroupWithInterval.overviewMarkerX = 0;
 
-                this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
-                    overviewGroup.markerX = 0;
-                });
+                if (this.focusModel.overviewGroupWithIntervalList) {
+                    this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
+                        overviewGroup.markerX = 0;
+                    });
+                }
 
                 this.drawSelectedGroupsMarkers();
             }
@@ -1570,14 +1702,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return indexes;
     }
 
-    getFocusInstance(overviewInstance, indexList) {
-        var focusInstance = {};
-        focusInstance.instance = overviewInstance.instance;
-        focusInstance.overviewInstance = overviewInstance;
-        this.initialiseFocusInstanceData(focusInstance, overviewInstance, indexList);
-        return focusInstance;
-    }
-
     initialiseFocusInstanceData(focusInstance, overviewInstance, indexList) {
         focusInstance.metricList = [];
         this.addFocusMetrics(focusInstance, overviewInstance, indexList);
@@ -1717,20 +1841,32 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.focusModel.groupList.forEach((group, groupIndex) => {
             group.instanceList.forEach((instance, instanceIndex) => {
                 if (instanceIndex == 0 || group.showDetails) {
-                    this.drawGroupedFocusGraphWrapper(groupIndex, instance, instanceIndex);
+                    this.drawGroupedFocusGraphWrapper(group, groupIndex, instance, instanceIndex);
                 }
             });
         });
     }
 
-    drawGroupedFocusGraphWrapper(groupIndex, instance, instanceIndex) {
+    drawGroupedFocusGraphWrapper(group, groupIndex, instance, instanceIndex) {
+        // full time range
         var canvas = this.getElementByID("focusGraphCanvas-" + groupIndex + "-" + instanceIndex);
-        var context = this.getCanvasContext(canvas);
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        this.drawFocusGraphInstance(instance, context);
+        var maxMetricLength = this.getMaxMetricLength();
+        this.drawGroupedFocusGraphInstance(canvas, instance, Array.from(Array(maxMetricLength).keys()));
+
+        // selected time range
+        if (group.overviewGroup.timeRangeIndexList) {
+            var canvas = this.getElementByID("focusGraphHighlightedTimeRangeCanvas-" + groupIndex + "-" + instanceIndex);
+            this.drawGroupedFocusGraphInstance(canvas, instance, group.overviewGroup.timeRangeIndexList);
+        }
     }
 
-    drawFocusGraphInstance(instance, context) {
+    drawGroupedFocusGraphInstance(canvas, instance, valueIndexList) {
+        var context = this.getCanvasContext(canvas);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        this.drawFocusGraphInstance(instance, context, valueIndexList);
+    }
+
+    drawFocusGraphInstance(instance, context, valueIndexList) {
         instance.metricList.forEach((metric, metricIndex) => {
             metric.layerList.forEach((layer, layerIndex) => {
                 // start drawing from bottom
@@ -1742,12 +1878,16 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 var previousX = 0;
                 var previousValue = 0;
 
-                layer.valueList.forEach((value, valueIndex) => {
-                    x = this.getFocusGraphPointWidth() * valueIndex;
-                    this.moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y,
-                        this.overviewModel.metricList[metricIndex].layerRange);
-                    previousX = x;
-                    previousValue = value;
+                valueIndexList.forEach((valueIndex, positionIndex) => {
+                    var value = layer.valueList[valueIndex];
+
+                    if (value != undefined) {
+                        x = this.getFocusGraphPointWidth() * positionIndex;
+                        this.moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y,
+                            this.overviewModel.metricList[metricIndex].layerRange);
+                        previousX = x;
+                        previousValue = value;
+                    }
                 });
 
                 context.lineTo(x, y);
@@ -1764,7 +1904,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var canvas = this.getElementByID("focusGraphCanvas-" + instanceIndex);
             var context = this.getCanvasContext(canvas);
             context.clearRect(0, 0, canvas.width, canvas.height);
-            this.drawFocusGraphInstance(instance, context);
+            this.drawFocusGraphInstance(instance, context, Array.from(Array(this.getMaxMetricLength()).keys()));
         });
     }
 
@@ -1862,9 +2002,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.handleOverviewMarkerMovingForwardCase();
             }
 
-            this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
-                overviewGroup.markerX = this.overviewGroupWithInterval.overviewMarkerX;
-            });
+            if (this.focusModel.overviewGroupWithIntervalList) {
+                this.focusModel.overviewGroupWithIntervalList.forEach((overviewGroup) => {
+                    overviewGroup.markerX = this.overviewGroupWithInterval.overviewMarkerX;
+                });
+            }
 
             this.drawSelectedGroupsMarkers();
         }, this.config.intervalTimer);

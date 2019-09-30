@@ -4,25 +4,49 @@
     <!-- Viewing settings -->
     <table>
         <tr>
-            <td ng-if="false" style="padding-left: 10px">
-                <select ng-model="ctrl.linkingMode" ng-change="ctrl.selectLinker()">
-                    <option value="1">X Cross</option>
-                    <option value="2">Normal cross</option>
-                    <option value="3">Change color</option>
-                </select>
-            </td>
+            <!-- Grouping mode -->
+            <td>
+                <div class="input-box">
+                    <table>
+                        <tr>
+                            <td>
+                                Grouping mode
+                            </td>
 
-            <!-- Grouping Mode -->
-            <td style="padding-left: 10px">
-                <select ng-model="ctrl.groupingMode" ng-change="ctrl.selectGroupingMode()">
-                    <option value="1">Single-attribute</option>
-                    <option value="2">Multi-attribute</option>
-                </select>
+                            <td style="padding-left: 10px">
+                                <select ng-model="ctrl.groupingMode" ng-change="ctrl.selectGroupingMode()">
+                                    <option value="1">Single-attribute</option>
+                                    <option value="2">Multi-attribute</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
             </td>
 
             <td style="padding-left: 10px">
                 <button ng-click="ctrl.groupUngroup()"
                     style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
+            </td>
+
+            <!-- Time highlight mode -->
+            <td ng-show="ctrl.isGrouped" style="padding-left: 10px">
+                <div class="input-box">
+                    <table>
+                        <tr>
+                            <td>
+                                Time highlight mode
+                            </td>
+
+                            <td style="padding-left: 10px">
+                                <select ng-model="ctrl.timeHighlightMode" ng-change="ctrl.selectTimeHighlightMode()">
+                                    <option value="1">Point</option>
+                                    <option value="2">Range</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
             </td>
 
             <td style="padding-left: 10px">
@@ -37,83 +61,104 @@
         <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
             height="{{ctrl.overviewCanvasHeight}}"></canvas>
 
-        <canvas id="timeIndicatorCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
+        <canvas id="overviewTimeIndicatorCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
             height="{{ctrl.overviewCanvasHeight}}"></canvas>
 
         <canvas id="focusAreaCanvas" style="position: absolute; cursor: {{ctrl.overviewCursor}}"
             width="{{ctrl.overviewCanvasWidth}}" height="{{ctrl.overviewCanvasHeight}}"
-            ng-mousemove="ctrl.moveMouseOnOverview($event)" ng-click="ctrl.clickOnOverView($event)"></canvas>
+            ng-mousedown="ctrl.mouseDownOnOverview($event)" ng-mousemove="ctrl.moveMouseOnOverview($event)"
+            ng-mouseUp="ctrl.mouseUpOnOverView($event)"></canvas>
     </div>
 
     <!-- Focus graph -->
     <div ng-show="ctrl.showFocus" style="margin-top: {{ctrl.focusGraphMarginTop}}px">
-        <div ng-if="!ctrl.isGrouped"
+        <div ng-hide="ctrl.isGrouped"
             style="font-family: Arial; font-style: italic;  font-size: {{ctrl.timeFontSize}}px">
             <span style="margin-left: {{ctrl.fromDateLeftMargin}}px">{{ctrl.focusedFromDate}}</span>
             <span style="margin-left: {{ctrl.toDateLeftMargin}}px">{{ctrl.focusedToDate}}</span>
         </div>
 
+        <canvas id="focusGraphTimeIndicatorCanvas" width="{{ctrl.focusGraphMarkerWidth}}"
+            height="{{ctrl.focusGraphMarkerHeight}}" style="margin-left: {{ctrl.fromDateLeftMargin}}px"></canvas>
+
         <div id="focusGraphContainer" style="height: 350px; overflow: auto">
             <!-- Grouped -->
             <div ng-if="ctrl.isGrouped">
-                <table id="focusGraphRow" ng-repeat="group in ctrl.focusModel.groupList">
-                    <tr ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
+                <div ng-repeat="group in ctrl.focusModel.groupList">
+                    <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                         ng-mouseover="ctrl.moveMouseOnFocusGroup(group, instance)"
                         ng-mouseleave="ctrl.stopOverviewMarkerInterval()"
-                        style="border-bottom:1px dashed black; padding-top: 5px" ng-click="ctrl.selectNode(instance)">
-                        <td class="focusInstanceCell centeredCell">
-                            <canvas id="focusGroupMarkerCanvas-{{$parent.$index}}-{{$index}}"
-                                width="{{ctrl.focusGraphMarkerWidth}}"
-                                height="{{ctrl.focusGraphMarkerHeight}}"></canvas>
-                        </td>
+                        style="border-bottom: 1px {{group.showDetails && $index < group.instanceList.length - 1 ? 'dashed' : 'solid'}} black; padding-bottom: 5px"
+                        ng-click="ctrl.selectNode(instance)">
+                        <table id="focusGraphRow">
+                            <tr>
+                                <td class="focusInstanceCell centeredCell">
+                                    <canvas id="focusGroupMarkerCanvas-{{$parent.$index}}-{{$index}}"
+                                        width="{{ctrl.focusGraphMarkerWidth}}"
+                                        height="{{ctrl.focusGraphMarkerHeight}}"></canvas>
+                                </td>
 
-                        <td ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: instance.isSelected}"
-                            style="line-height: 100%; text-align: center">
-                            <div ng-show="group.showDetails">
-                                {{instance.instance}}
-                            </div>
+                                <td ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: instance.isSelected}"
+                                    style="line-height: 100%; text-align: center">
+                                    <div ng-show="group.showDetails">
+                                        {{instance.instance}}
+                                    </div>
 
-                            <!-- First instance -->
-                            <div ng-show="$index == 0 && !group.showDetails">
-                                <div>
-                                    Group {{($parent.$index + 1)}}
-                                </div>
+                                    <!-- First instance -->
+                                    <div ng-show="$index == 0 && !group.showDetails">
+                                        <div>
+                                            Group {{($parent.$index + 1)}}
+                                        </div>
 
-                                <div>
-                                    ({{group.instanceList.length}}
-                                    node{{group.instanceList.length > 1 ? "s" : ""}})
-                                </div>
-                            </div>
+                                        <div>
+                                            ({{group.instanceList.length}}
+                                            node{{group.instanceList.length > 1 ? "s" : ""}})
+                                        </div>
+                                    </div>
 
-                            <span ng-click="ctrl.showNodes(group, $event)" style="color: blue; cursor: pointer">
-                                {{group.showDetails ? "hide" : "show"}} details
-                            </span>
-                        </td>
+                                    <span ng-click="ctrl.showNodes(group, $event)" style="color: blue; cursor: pointer">
+                                        {{group.showDetails ? "hide" : "show"}} details
+                                    </span>
+                                </td>
 
-                        <td id="canvasCell" class="focusCanvasCell">
-                            <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}" width="{{ctrl.focusGraphWidth}}"
-                                height="{{ctrl.focusGraphHeight}}"></canvas>
-                        </td>
-                    </tr>
-                </table>
+                                <td id="canvasCell" class="focusCanvasCell">
+                                    <div style="border-bottom: 1px dotted black">
+                                        <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}"
+                                            width="{{ctrl.focusGraphWidth}}"
+                                            height="{{ctrl.focusGraphHeight}}"></canvas>
+                                    </div>
+
+                                    <canvas
+                                        ng-show="group.overviewGroup.timeRangeIndexList && group.overviewGroup.timeRangeIndexList.length > 0"
+                                        id="focusGraphHighlightedTimeRangeCanvas-{{$parent.$index}}-{{$index}}"
+                                        style="margin-top: 5px" width="{{ctrl.focusGraphWidth}}"
+                                        height="{{ctrl.focusGraphHeight}}"></canvas>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             <!-- Ungrouped -->
-            <table ng-if="!ctrl.isGrouped">
-                <tr id="focusGraphRow" ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
-                    style="border-bottom:1px dashed black; padding-top: 5px"
+            <div ng-if="!ctrl.isGrouped">
+                <div ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
+                    style="border-bottom:1px solid black; padding-top: 5px"
                     ng-click="ctrl.selectNode(ctrl.focusModel.data[$index])">
-                    <td
-                        ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: ctrl.focusModel.data[$index].isSelected || group.showDetails}">
-                        {{ctrl.focusModel.data[$index].instance}}
-                    </td>
+                    <table>
+                        <tr id="focusGraphRow">
+                            <td
+                                ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: ctrl.focusModel.data[$index].isSelected || group.showDetails}">
+                                {{ctrl.focusModel.data[$index].instance}}
+                            </td>
 
-                    <td id="canvasCell" class="focusCanvasCell">
-                        <canvas id="focusGraphCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
-                            height="{{ctrl.focusGraphHeight}}"></canvas>
-                    </td>
-                </tr>
-            </table>
+                            <td id="canvasCell" class="focusCanvasCell">
+                                <canvas id="focusGraphCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
+                                    height="{{ctrl.focusGraphHeight}}"></canvas>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
-</div>
