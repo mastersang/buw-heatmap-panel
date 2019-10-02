@@ -13,7 +13,7 @@
                                 Grouping mode
                             </td>
 
-                            <td style="padding-left: 10px">
+                            <td class="leftPaddingCell">
                                 <select ng-model="ctrl.groupingMode" ng-change="ctrl.selectGroupingMode()">
                                     <option value="1">Single-attribute</option>
                                     <option value="2">Multi-attribute</option>
@@ -24,13 +24,37 @@
                 </div>
             </td>
 
-            <td style="padding-left: 10px">
+            <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
+                <div class="input-box">
+                    <table>
+                        <tr>
+                            <td>
+                                Grouping threshold
+                            </td>
+
+                            <td class="leftPaddingCell">
+                                <input type="range" min="0" max="{{ctrl.config.groupingThresholdCount}}"
+                                    style="width: 200px" ng-model="ctrl.groupingThreshold"
+                                    ng-change="ctrl.changeGroupingThreshold()">
+                            </td>
+
+                            <td class="leftPaddingCell">
+                                <span style="font-style: italic">
+                                    {{ctrl.groupingThreshold}}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </td>
+
+            <td class="leftPaddingCell">
                 <button ng-click="ctrl.groupUngroup()"
                     style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
             </td>
 
             <!-- Time highlight mode -->
-            <td ng-show="ctrl.isGrouped" style="padding-left: 10px">
+            <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
                 <div class="input-box">
                     <table>
                         <tr>
@@ -38,7 +62,7 @@
                                 Time highlight mode
                             </td>
 
-                            <td style="padding-left: 10px">
+                            <td class="leftPaddingCell">
                                 <select ng-model="ctrl.timeHighlightMode" ng-change="ctrl.selectTimeHighlightMode()">
                                     <option value="1">Point</option>
                                     <option value="2">Range</option>
@@ -49,7 +73,7 @@
                 </div>
             </td>
 
-            <td style="padding-left: 10px">
+            <td class="leftPaddingCell">
                 <button ng-click="ctrl.compressDecompress()"
                     style="width:120px">{{ctrl.isCompressed ? "Decompress" : "Compress"}} time</button>
             </td>
@@ -77,9 +101,6 @@
             <span style="margin-left: {{ctrl.fromDateLeftMargin}}px">{{ctrl.focusedFromDate}}</span>
             <span style="margin-left: {{ctrl.toDateLeftMargin}}px">{{ctrl.focusedToDate}}</span>
         </div>
-
-        <canvas id="focusGraphTimeIndicatorCanvas" width="{{ctrl.focusGraphMarkerWidth}}"
-            height="{{ctrl.focusGraphMarkerHeight}}" style="margin-left: {{ctrl.fromDateLeftMargin}}px"></canvas>
 
         <div id="focusGraphContainer" style="height: 350px; overflow: auto">
             <!-- Grouped -->
@@ -127,10 +148,27 @@
                                             width="{{ctrl.focusGraphWidth}}"
                                             height="{{ctrl.focusGraphHeight}}"></canvas>
                                     </div>
+                                </td>
+                            </tr>
 
-                                    <canvas
-                                        ng-show="group.overviewGroup.timeRangeIndexList && group.overviewGroup.timeRangeIndexList.length > 0"
-                                        id="focusGraphHighlightedTimeRangeCanvas-{{$parent.$index}}-{{$index}}"
+                            <tr
+                                ng-show="group.overviewGroup.timeRangeIndexList && group.overviewGroup.timeRangeIndexList.length > 0">
+                                <td colspan="2" style="text-align: right; padding-right: 10px">
+                                    from
+
+                                    <b>
+                                        {{group.overviewGroup.startTimeRangeDate}}
+                                    </b>
+
+                                    to
+
+                                    <b>
+                                        {{group.overviewGroup.endTimeRangeDate}}
+                                    </b>
+                                </td>
+
+                                <td>
+                                    <canvas id="focusGraphHighlightedTimeRangeCanvas-{{$parent.$index}}-{{$index}}"
                                         style="margin-top: 5px" width="{{ctrl.focusGraphWidth}}"
                                         height="{{ctrl.focusGraphHeight}}"></canvas>
                                 </td>

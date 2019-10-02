@@ -1,5 +1,3 @@
-
-
 .highlighted {
     font-weight: bold; 
     color: brown
@@ -14,8 +12,8 @@
     text-align: center
 }
 
-.bigLeftPadding {
-    padding-left: 20px
+.leftPaddingCell {
+    padding-left: 10px;
 }
 
 .focusCanvasCell {
