@@ -14,7 +14,8 @@
                             </td>
 
                             <td class="leftPaddingCell">
-                                <select ng-model="ctrl.groupingMode" ng-change="ctrl.selectGroupingMode()">
+                                <select ng-model="ctrl.groupingMode" ng-change="ctrl.selectGroupingMode()"
+                                    style="width: 150px">
                                     <option value="1">Single-attribute</option>
                                     <option value="2">Multi-attribute</option>
                                 </select>
@@ -53,6 +54,10 @@
                     style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
             </td>
 
+            <td ng-show="ctrl.showMergeSelectedGroups" class="leftPaddingCell">
+                <button ng-click="ctrl.mergeSelectedGroups()">Merge selected groups</button>
+            </td>
+
             <!-- Time highlight mode -->
             <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
                 <div class="input-box">
@@ -63,7 +68,8 @@
                             </td>
 
                             <td class="leftPaddingCell">
-                                <select ng-model="ctrl.timeHighlightMode" ng-change="ctrl.selectTimeHighlightMode()">
+                                <select ng-model="ctrl.timeHighlightMode" ng-change="ctrl.selectTimeHighlightMode()"
+                                    style="width: 100px">
                                     <option value="1">Point</option>
                                     <option value="2">Range</option>
                                 </select>

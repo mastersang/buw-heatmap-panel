@@ -720,6 +720,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.overviewContext.clearRect(0, 0, this.overviewCanvas.width, this.overviewCanvas.height);
             this.setOverviewCanvasSize();
             this.focusGraphMarginTop = this.overviewCanvasHeight + this.config.marginBetweenOverviewAndFocus;
+            this.scope.$apply();
             this.drawOverviewData();
         });
     }
@@ -730,18 +731,16 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewModel.overviewStartY = this.overviewModel.labelTextHeight + this.config.overview.marginBetweenLabelsAndOverview;
         this.setOverviewWidth();
         this.setOverviewHeight();
-        this.scope.$apply();
     }
 
     setOverviewWidth() {
         this.setOverviewContextTimeFont();
-        this.overviewModel.toDate = this.convertDateToString(this.toDate * 1000);
-        this.overviewModel.toDateWidth = this.overviewContext.measureText(this.overviewModel.toDate).width;
-        var marginBetweenMetrics = this.isCompressed ? this.config.overview.compressedMarginBetweenMetrics : this.config.overview.decompressedMarginBetweenMetrics;
+        var marginBetweenMetrics = this.getMarginBetweenMetrics();
+
         this.overviewModel.overviewWidth = this.config.overview.marginBetweenMarkerAndGroup * this.overviewModel.metricList.length +
             marginBetweenMetrics * (this.overviewModel.metricList.length - 1);
 
-        // total width of overiew graph (groupsize excluded)
+        // total width of overiew graph
         if (this.isCompressed) {
             this.overviewModel.metricList.forEach((metric) => {
                 this.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * this.config.overview.pointWidth;
@@ -751,12 +750,26 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
 
         this.overviewCanvasWidth = this.overviewModel.overviewWidth;
+        this.overviewModel.toDate = this.convertDateToString(this.toDate * 1000);
+        this.overviewModel.toDateWidth = this.overviewContext.measureText(this.overviewModel.toDate).width;
 
         if (this.isGrouped) {
             this.setGroupedOverviewCanvasWidth();
         } else {
             this.overviewCanvasWidth += this.overviewModel.toDateWidth / 2;
         }
+    }
+
+    getMarginBetweenMetrics() {
+        var marginBetweenMetrics;
+
+        if (this.isGrouped || !this.isCompressed) {
+            marginBetweenMetrics = this.config.overview.decompressedMarginBetweenMetrics;
+        } else {
+            marginBetweenMetrics = this.config.overview.compressedMarginBetweenMetrics;
+        }
+
+        return marginBetweenMetrics;
     }
 
     getMaxMetricLength() {
@@ -1147,21 +1160,45 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.drawOverview();
         this.clearFocusArea();
         this.clearTimeIndicator();
+        this.deselectAllGroups();
+        this.showFocus = false;
+        this.showMergeSelectedGroups = false;
+    }
+
+    deselectAllGroups() {
         this.focusModel.groupList = [];
+        this.deselectSingleAttributeGroups();
+        this.deselectMultiAttributeGroups();
+    }
 
-        this.overviewModel.thresholdGroupListMap.forEach((group) => {
-            group.isSelected = false;
-        })
-
+    deselectSingleAttributeGroups() {
         this.overviewModel.metricList.forEach((metric) => {
-            if (metric.thresholdGroupListMap) {
-                metric.thresholdGroupListMap.forEach((group) => {
+            if (metric.originalGroupList) {
+                metric.thresholdGroupListMap.set(this.previousGroupThreshold, metric.originalGroupList);
+                metric.originalGroupList = null;
+            }
+
+            var groupList = this.getCurrentSingleAttributeGroupList(metric);
+
+            if (groupList) {
+                groupList.forEach((group) => {
                     group.isSelected = false;
                 });
             }
         });
+    }
 
-        this.showFocus = false;
+    deselectMultiAttributeGroups() {
+        if (this.overviewModel.originalGroupList) {
+            this.overviewModel.thresholdGroupListMap.set(this.previousGroupThreshold, this.overviewModel.originalGroupList);
+            this.overviewModel.originalGroupList = null;
+        }
+
+        var groupList = this.getCurrentMultiAttributeGroupList();
+
+        groupList.forEach((group) => {
+            group.isSelected = false;
+        });
     }
 
     changeGroupingThreshold() {
@@ -1171,6 +1208,121 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     groupUngroup() {
         this.isGrouped = !this.isGrouped;
         this.changeGroupingSelection();
+    }
+
+    mergeSelectedGroups() {
+        this.previousGroupThreshold = this.groupingThreshold;
+
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+            this.mergeSingleAttributeGroups();
+        } else {
+            this.mergeMultipleAttributeGroups();
+        }
+
+        this.mergeFocusGroupList();
+        this.showMergeSelectedGroups = false;
+        this.drawOverview();
+        this.drawSelectedGroupsMarkers();
+        this.drawFocusGraph();
+    }
+
+    mergeSingleAttributeGroups() {
+        this.overviewModel.metricList.forEach((metric) => {
+            var groupList = this.getCurrentSingleAttributeGroupList(metric);
+
+            if (!metric.originalGroupList) {
+                metric.originalGroupList = [];
+
+                groupList.forEach((group) => {
+                    metric.originalGroupList.push(group);
+                });
+            }
+
+            this.mergeSelectedGroupsWrapper(groupList);
+        });
+    }
+
+    mergeSelectedGroupsWrapper(groupList) {
+        var currentGroupList = [];
+
+        groupList.forEach((group) => {
+            currentGroupList.push(group);
+        });
+
+        groupList.length = 0;
+        this.populateMergedGroupList(currentGroupList, groupList);
+    }
+
+    populateMergedGroupList(currentGroupList, groupList) {
+        var mergedGroup;
+
+        currentGroupList.forEach((group) => {
+            if (group.isSelected) {
+                if (mergedGroup) {
+                    group.instanceList.forEach((instance) => {
+                        mergedGroup.instanceList.push(instance)
+                    });
+                } else {
+                    mergedGroup = JSON.parse(JSON.stringify(group));
+                    groupList.push(mergedGroup);
+                }
+            } else {
+                groupList.push(group);
+            }
+        });
+    }
+
+    mergeFocusGroupList() {
+        this.focusModel.groupList = [];
+
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+            this.overviewModel.metricList.forEach((metric) => {
+                var groupList = this.getCurrentSingleAttributeGroupList(metric);
+                this.mergeFocusGroupListWrapper(groupList);
+            })
+        } else {
+            this.mergeFocusGroupListWrapper(this.getCurrentMultiAttributeGroupList());
+        }
+    }
+
+    mergeFocusGroupListWrapper(groupList) {
+        groupList.forEach((group) => {
+            if (group.isSelected) {
+                this.addGroupToFocus(group);
+            }
+        });
+    }
+
+    addGroupToFocus(group) {
+        var focusGroup = {};
+        focusGroup.instanceList = [];
+        focusGroup.overviewGroup = group;
+
+        group.instanceList.forEach((overviewInstance) => {
+            var metricWithMostData = _.maxBy(overviewInstance.metricList, (metric) => {
+                return metric.data.length;
+            });
+
+            this.focusModel.focusedIndexList = Array.from(Array(metricWithMostData.data.length).keys());
+            var focusInstance = this.getFocusInstance(overviewInstance, this.focusModel.focusedIndexList);
+            focusGroup.instanceList.push(focusInstance);
+        });
+
+        this.focusModel.groupList.push(focusGroup);
+    }
+
+    mergeMultipleAttributeGroups() {
+        var groupList = this.getCurrentMultiAttributeGroupList();
+
+        if (!this.overviewModel.originalGroupList) {
+            this.overviewModel.originalGroupList = [];
+
+            groupList.forEach((group) => {
+                this.overviewModel.originalGroupList.push(group);
+            });
+        }
+
+        this.mergeSelectedGroupsWrapper(groupList);
     }
 
     compressDecompress() {
@@ -1210,27 +1362,29 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     moveMouseOnOverview(evt) {
-        this.setOverviewMousePosition(evt);
+        if (this.overviewModel.metricList) {
+            this.setOverviewMousePosition(evt);
 
-        if (this.isGrouped) {
-            this.initialiseOverviewCanvasCursor();
-            this.overviewModel.hoveredGroup = null;
-            this.overviewModel.hoveredMarker = null;
-            this.checkAndSetSelectedOverviewMarker();
-            this.checkMouseIsOnGroupAndSetHoveredGroup();
+            if (this.isGrouped) {
+                this.initialiseOverviewCanvasCursor();
+                this.overviewModel.hoveredGroup = null;
+                this.overviewModel.hoveredMarker = null;
+                this.checkAndSetSelectedOverviewMarker();
+                this.checkMouseIsOnGroupAndSetHoveredGroup();
 
-            if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
-                if (this.overviewModel.hoveredGroup) {
-                    this.drawTimeIndicators();
-                } else {
-                    this.clearTimeIndicator();
+                if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
+                    if (this.overviewModel.hoveredGroup) {
+                        this.drawTimeIndicators();
+                    } else {
+                        this.clearTimeIndicator();
+                    }
+                } else if (this.overviewModel.isSelectingTimeRange) {
+                    this.initialiseSelectedGroupTimeRangeIndexList();
+                    this.drawSelectedTimeRanges();
                 }
-            } else if (this.overviewModel.isSelectingTimeRange) {
-                this.initialiseSelectedGroupTimeRangeIndexList();
-                this.drawSelectedTimeRanges();
+            } else if (!this.isCompressed && !this.focusAreaIsFixed) {
+                this.drawFocus(evt);
             }
-        } else if (!this.isCompressed && !this.focusAreaIsFixed) {
-            this.drawFocus(evt);
         }
     }
 
@@ -1522,24 +1676,39 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             group.isSelected = true;
             this.addGroupToFocus(group);
         }
+
+        this.setShowMergeGroupsButton();
     }
 
-    addGroupToFocus(group) {
-        var focusGroup = {};
-        focusGroup.instanceList = [];
-        focusGroup.overviewGroup = group;
+    setShowMergeGroupsButton() {
+        this.showMergeSelectedGroups = false;
 
-        group.instanceList.forEach((overviewInstance) => {
-            var metricWithMostData = _.maxBy(overviewInstance.metricList, (metric) => {
-                return metric.data.length;
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+            this.overviewModel.metricList.forEach((metric) => {
+                var groupList = this.getCurrentSingleAttributeGroupList(metric);
+                this.setShowMergeGroupsButtonWrapper(groupList);
             });
+        } else {
+            var groupList = this.getCurrentMultiAttributeGroupList();
+            this.setShowMergeGroupsButtonWrapper(groupList);
+        }
+    }
 
-            this.focusModel.focusedIndexList = Array.from(Array(metricWithMostData.data.length).keys());
-            var focusInstance = this.getFocusInstance(overviewInstance, this.focusModel.focusedIndexList);
-            focusGroup.instanceList.push(focusInstance);
-        });
+    setShowMergeGroupsButtonWrapper(groupList) {
+        var selectedGroupCount = 0;
 
-        this.focusModel.groupList.push(focusGroup);
+        for (var i = 0; i < groupList.length; ++i) {
+            var group = groupList[i];
+
+            if (group.isSelected) {
+                ++selectedGroupCount;
+            }
+
+            if (selectedGroupCount == 2) {
+                this.showMergeSelectedGroups = true;
+                return;
+            }
+        };
     }
 
     getFocusInstance(overviewInstance, indexList) {
@@ -1551,20 +1720,26 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawSelectedGroupsMarkers() {
-        this.clearFocusArea();
-        this.overviewModel.groupMarkerList = [];
+        this.$timeout(() => {
+            this.clearFocusArea();
+            this.overviewModel.groupMarkerList = [];
 
-        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-            this.overviewModel.metricList.forEach((metric) => {
-                metric.thresholdGroupListMap.forEach((group) => {
-                    this.drawOverviewGroupMarker(group, [metric])
+            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+                this.overviewModel.metricList.forEach((metric) => {
+                    var groupList = this.getCurrentSingleAttributeGroupList(metric);
+
+                    groupList.forEach((group) => {
+                        this.drawOverviewGroupMarker(group, [metric])
+                    });
                 });
-            });
-        } else {
-            this.overviewModel.thresholdGroupListMap.forEach((group) => {
-                this.drawOverviewGroupMarker(group, this.overviewModel.metricList)
-            });
-        }
+            } else {
+                var groupList = this.getCurrentMultiAttributeGroupList();
+
+                groupList.forEach((group) => {
+                    this.drawOverviewGroupMarker(group, this.overviewModel.metricList)
+                });
+            }
+        });
     }
 
     drawOverviewGroupMarker(group, metricList) {
