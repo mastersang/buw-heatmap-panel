@@ -115,8 +115,7 @@
                     <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                         ng-mouseover="ctrl.moveMouseOnFocusGroup(group, instance)"
                         ng-mouseleave="ctrl.stopOverviewMarkerInterval()"
-                        style="border-bottom: 1px {{group.showDetails && $index < group.instanceList.length - 1 ? 'dashed' : 'solid'}} black; padding-bottom: 5px"
-                        ng-click="ctrl.selectNode(instance)">
+                        style="border-bottom: 1px {{group.showDetails && $index < group.instanceList.length - 1 ? 'dashed' : 'solid'}} black; padding-bottom: 5px">
                         <table id="focusGraphRow">
                             <tr>
                                 <td class="focusInstanceCell centeredCell">
@@ -151,8 +150,8 @@
                                 <td id="canvasCell" class="focusCanvasCell">
                                     <div style="border-bottom: 1px dotted black">
                                         <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}"
-                                            width="{{ctrl.focusGraphWidth}}"
-                                            height="{{ctrl.focusGraphHeight}}"></canvas>
+                                            width="{{ctrl.focusGraphWidth}}" height="{{ctrl.focusGraphHeight}}"
+                                            ng-click="ctrl.selectNode(instance, $event, $parent.$index, $index)"></canvas>
                                     </div>
                                 </td>
                             </tr>

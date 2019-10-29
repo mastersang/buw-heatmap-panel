@@ -16,7 +16,7 @@
         </td>
 
         <td class="centeredCell">
-            <table ng-show="metric.isCustom">
+            <table ng-show="metric.isCustom" style="border-collapse: separate; border-spacing: 1em">
                 <tr>
                     <td class="centeredCell">
                         <b>
@@ -32,9 +32,9 @@
                         </b>
                     </td>
 
-                    <td class="centeredCell" style="padding-left: 5px">
+                    <td class="centeredCell">
                         <textarea ng-model="metric.query"
-                            style="width: 1000px; height: 100px; word-break: break-all; padding: 5px"></textarea>
+                            style="width: 600px; height: 100px; word-break: break-all; padding: 5px"></textarea>
                     </td>
                 </tr>
             </table>
@@ -50,6 +50,14 @@
             </b>
 
             <input type="color" ng-model="metric.color">
+        </td>
+
+        <td class="centeredCell">
+            <b>
+                Popup URL:
+            </b>
+
+            <input ng-model="metric.popupURL" style="margin-left: 5px; width: 300px;">
         </td>
     </tr>
 </table>
