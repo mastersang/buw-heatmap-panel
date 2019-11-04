@@ -969,7 +969,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 var point = instanceMetric.data[pointIndex];
 
                 if (point) {
-                    this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, this.config.overview.pointWidth, pointHeight);
+                    this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex,
+                        this.config.overview.pointWidth, pointHeight);
                 }
             });
         } else {
@@ -1378,6 +1379,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
                     if (this.overviewModel.hoveredGroup) {
+                        if (this.isCompressed && this.groupingMode == this.enumList.groupingMode.MULTIPLE) {
+                            this.setSelectedTimeIndex();
+                        }
+
                         this.drawTimeIndicators();
                     } else {
                         this.clearTimeIndicator();
@@ -1468,6 +1473,31 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
+    setSelectedTimeIndex() {
+        var overviewMetric = this.overviewModel.metricList[this.overviewModel.selectedMetricIndex];
+        var groupList = this.getCurrentMultiAttributeGroupList();
+
+        for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+            var instanceMetric = groupList[groupIndex].instanceList[0].metricList[this.overviewModel.selectedMetricIndex];
+
+            for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+                var pointIndex = overviewMetric.compressedTimeIndexList[compressedTimeIndex];
+                var point = instanceMetric.data[pointIndex];
+
+                if (point) {
+                    if (this.checkDataPointIsSelected(point)) {
+                        this.overviewModel.selectedTimeIndex = pointIndex;
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    checkDataPointIsSelected(point) {
+        return this.isBetween(this.overviewModel.mousePosition.x, point.x, point.x + this.config.overview.pointWidth);
+    }
+
     drawTimeIndicators() {
         this.clearTimeIndicator();
         this.overviewTimeIndicatorContext.strokeStyle = this.config.timeIndicator.color;
@@ -1475,17 +1505,47 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
             this.drawTimeIndicatorWrapper(this.overviewModel.metricList[this.overviewModel.selectedMetricIndex]);
         } else {
-            this.overviewModel.metricList.forEach((metric) => {
-                this.drawTimeIndicatorWrapper(metric);
+            this.overviewModel.metricList.forEach((metric, metricIndex) => {
+                this.drawTimeIndicatorWrapper(metric, metricIndex);
             });
         }
 
         this.drawSelectedTimeLabel();
     }
 
-    drawTimeIndicatorWrapper(metric) {
-        var horizontalLineY = this.drawHorizontalTimeLine(metric, this.overviewModel.hoveredGroup);
-        this.drawSelectedTimePoint(metric, horizontalLineY);
+    drawTimeIndicatorWrapper(overviewMetric, metricIndex) {
+        var horizontalLineY = this.drawHorizontalTimeLine(overviewMetric, this.overviewModel.hoveredGroup);
+        var verticalLineX;
+
+        if (this.isCompressed && this.groupingMode == this.enumList.groupingMode.MULTIPLE &&
+            metricIndex != null && metricIndex != this.overviewModel.selectedMetricIndex) {
+            verticalLineX = this.getTimeIndicatorXForNonSelectedMetric(overviewMetric, metricIndex);
+        } else {
+            verticalLineX = overviewMetric.startX + this.overviewModel.mousePositionXOffset;
+        }
+
+        this.drawSelectedTimePoint(overviewMetric, horizontalLineY, verticalLineX);
+    }
+
+    getTimeIndicatorXForNonSelectedMetric(overviewMetric, metricIndex) {
+        var previousPointIndex = 0;
+
+        for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+            var currentPointIndex = overviewMetric.compressedTimeIndexList[compressedTimeIndex];
+
+            if (this.isBetween(this.overviewModel.selectedTimeIndex, previousPointIndex, currentPointIndex)) {
+                var groupList = this.getCurrentMultiAttributeGroupList();
+
+                for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+                    var instanceMetric = groupList[groupIndex].instanceList[0].metricList[metricIndex];
+                    var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
+
+                    if (point) {
+                        return point.x;
+                    }
+                }
+            }
+        }
     }
 
     drawHorizontalTimeLine(metric, group) {
@@ -1498,8 +1558,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return horizontalLineY;
     }
 
-    drawSelectedTimePoint(metric, horizontalLineY) {
-        var verticalLineX = metric.startX + this.overviewModel.mousePositionXOffset;
+    drawSelectedTimePoint(metric, horizontalLineY, verticalLineX) {
         this.overviewTimeIndicatorContext.beginPath();
         this.overviewTimeIndicatorContext.moveTo(verticalLineX, horizontalLineY);
         this.overviewTimeIndicatorContext.lineTo(verticalLineX, this.overviewModel.hoveredGroup.y);
@@ -1509,31 +1568,39 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawSelectedTimeLabel() {
         for (var metricIndex = 0; metricIndex < this.overviewModel.metricList.length; ++metricIndex) {
-            var instanceMetric = this.overviewModel.hoveredGroup.instanceList[0].metricList[metricIndex];
             var overviewMetric = this.overviewModel.metricList[metricIndex];
 
-            if (this.isCompressed) {
-                for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
-                    var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
+            // some groups are empty -> need to iterate through group list until find one that isn't
+            var groupList = this.getCurrentSingleAttributeGroupList(overviewMetric)
 
-                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, this.config.overview.pointWidth)) {
-                        return;
+            for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+                var instanceMetric = groupList[groupIndex].instanceList[0].metricList[metricIndex];
+
+                if (this.isCompressed) {
+                    for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+                        var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
+
+                        if (point) {
+                            if (this.checkDataPointIsSelectedAndDrawTimeLabel(point)) {
+                                return;
+                            }
+                        }
                     }
-                }
-            } else {
-                for (var compressedTimeIndex = 0; compressedTimeIndex < instanceMetric.data.length; ++compressedTimeIndex) {
-                    var point = instanceMetric.data[compressedTimeIndex];
+                } else {
+                    for (var pointIndex = 0; pointIndex < instanceMetric.data.length; ++pointIndex) {
+                        var point = instanceMetric.data[pointIndex];
 
-                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, this.config.overview.pointWidth)) {
-                        return;
+                        if (this.checkDataPointIsSelectedAndDrawTimeLabel(point)) {
+                            return;
+                        }
                     }
                 }
             }
         }
     }
 
-    checkDataPointIsSelectedAndDrawTimeLabel(point, pointWidth) {
-        if (this.isBetween(this.overviewModel.mousePosition.x, point.x, point.x + pointWidth)) {
+    checkDataPointIsSelectedAndDrawTimeLabel(point) {
+        if (this.checkDataPointIsSelected(point)) {
             this.overviewTimeIndicatorContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
             this.overviewTimeIndicatorContext.fillStyle = "black";
             var date = this.convertDateToString(point.date * 1000);
