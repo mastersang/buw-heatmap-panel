@@ -1361,6 +1361,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               if (groupList) {
                 groupList.forEach(function (group) {
                   group.isSelected = false;
+                  group.timeRangeIndexList = null;
                 });
               }
             });
@@ -1376,6 +1377,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var groupList = this.getCurrentMultiAttributeGroupList();
             groupList.forEach(function (group) {
               group.isSelected = false;
+              group.timeRangeIndexList = null;
             });
           }
         }, {
@@ -1522,8 +1524,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           key: "compressDecompress",
           value: function compressDecompress() {
             this.isCompressed = !this.isCompressed;
-            this.drawOverview();
-            this.clearFocusArea();
+            this.changeGroupingSelection();
           }
         }, {
           key: "selectTimeHighlightMode",
@@ -1750,6 +1751,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                   }
                 }
               }
+
+              previousPointIndex = currentPointIndex;
             }
           }
         }, {
@@ -1891,23 +1894,59 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             if (group.timeRangeIndexList && group.timeRangeIndexList.length > 0) {
               metricIndexList.forEach(function (metricIndex) {
                 var instanceMetric = group.instanceList[0].metricList[metricIndex];
-                var startPoint = instanceMetric.data[group.timeRangeIndexList[0]];
+                var overviewMetric = _this44.overviewModel.metricList[metricIndex];
+                var startPoint, endPoint;
+                var startRangeIndex = group.timeRangeIndexList[0];
+                var endRangeIndex = group.timeRangeIndexList[group.timeRangeIndexList.length - 1];
 
-                if (startPoint) {
-                  var overviewMetric = _this44.overviewModel.metricList[metricIndex];
+                if (_this44.isCompressed && metricIndex != group.timeRangeMetricIndex) {
+                  var previousPointIndex = 0;
 
-                  var startY = _this44.drawHorizontalTimeLine(overviewMetric, group);
+                  var groupList = _this44.getCurrentMultiAttributeGroupList();
 
-                  var endIndex = group.timeRangeIndexList[group.timeRangeIndexList.length - 1];
-                  var startX = startPoint.x;
-                  var endX = instanceMetric.data[endIndex].x + _this44.config.overview.pointWidth;
-                  var width = endX - startX;
-                  var height = group.y - startY;
+                  for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+                    var currentPointIndex = overviewMetric.compressedTimeIndexList[compressedTimeIndex];
 
-                  _this44.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
+                    if (_this44.isBetween(startRangeIndex, previousPointIndex, currentPointIndex)) {
+                      startPoint = _this44.getTimeRangePointWrapper(previousPointIndex, groupList, metricIndex);
+                    }
+
+                    if (_this44.isBetween(endRangeIndex, previousPointIndex, currentPointIndex)) {
+                      endPoint = _this44.getTimeRangePointWrapper(currentPointIndex, groupList, metricIndex);
+                    }
+
+                    previousPointIndex = currentPointIndex;
+                  }
+                } else {
+                  startPoint = instanceMetric.data[startRangeIndex];
+                  endPoint = instanceMetric.data[endRangeIndex];
                 }
+
+                _this44.drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint);
               });
             }
+          }
+        }, {
+          key: "getTimeRangePointWrapper",
+          value: function getTimeRangePointWrapper(pointIndex, groupList, metricIndex) {
+            for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+              var instance = groupList[groupIndex].instanceList[0];
+              var point = instance.metricList[metricIndex].data[pointIndex];
+
+              if (point) {
+                return point;
+              }
+            }
+          }
+        }, {
+          key: "drawSelectedTimeRangeLines",
+          value: function drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint) {
+            var startY = this.drawHorizontalTimeLine(overviewMetric, group);
+            var startX = startPoint.x;
+            var endX = endPoint.x + this.config.overview.pointWidth;
+            var width = endX - startX;
+            var height = group.y - startY;
+            this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
           }
         }, {
           key: "mouseUpOnOverView",
@@ -2177,11 +2216,14 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             this.drawFocusArea();
 
             for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
-              var metric = this.overviewModel.metricList[i]; // only update focus graph if mouse is pointing on one of metric overview graphs
+              var metric = this.overviewModel.metricList[i];
 
-              if (this.checkMouseIsInMetric(metric)) {
-                this.drawFocusGraph();
-                break;
+              if (metric) {
+                // only update focus graph if mouse is pointing on one of metric overview graphs
+                if (this.checkMouseIsInMetric(metric)) {
+                  this.drawFocusGraph();
+                  break;
+                }
               }
             }
           }
@@ -2224,10 +2266,12 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
               var metric = this.overviewModel.metricList[i];
 
-              if (this.checkMouseIsInMetric(metric)) {
-                this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
-                this.focusModel.sourceMetricIndex = i;
-                return Math.min(Math.max(metric.startX, this.overviewModel.mousePosition.x - this.config.focusArea.focusAreaSize), metric.endX - this.getFocusAreaSize()) - metric.startX;
+              if (metric) {
+                if (this.checkMouseIsInMetric(metric)) {
+                  this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
+                  this.focusModel.sourceMetricIndex = i;
+                  return Math.min(Math.max(metric.startX, this.overviewModel.mousePosition.x - this.config.focusArea.focusAreaSize), metric.endX - this.getFocusAreaSize()) - metric.startX;
+                }
               }
             }
           }

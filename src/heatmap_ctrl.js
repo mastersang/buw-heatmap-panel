@@ -1188,6 +1188,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (groupList) {
                 groupList.forEach((group) => {
                     group.isSelected = false;
+                    group.timeRangeIndexList = null;
                 });
             }
         });
@@ -1203,6 +1204,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         groupList.forEach((group) => {
             group.isSelected = false;
+            group.timeRangeIndexList = null;
         });
     }
 
@@ -1332,8 +1334,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     compressDecompress() {
         this.isCompressed = !this.isCompressed;
-        this.drawOverview();
-        this.clearFocusArea();
+        this.changeGroupingSelection();
     }
 
     selectTimeHighlightMode() {
@@ -1545,6 +1546,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     }
                 }
             }
+
+            previousPointIndex = currentPointIndex;
         }
     }
 
@@ -1674,20 +1677,57 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         if (group.timeRangeIndexList && group.timeRangeIndexList.length > 0) {
             metricIndexList.forEach((metricIndex) => {
                 var instanceMetric = group.instanceList[0].metricList[metricIndex];
-                var startPoint = instanceMetric.data[group.timeRangeIndexList[0]];
+                var overviewMetric = this.overviewModel.metricList[metricIndex];
+                var startPoint, endPoint;
+                var startRangeIndex = group.timeRangeIndexList[0];
+                var endRangeIndex = group.timeRangeIndexList[group.timeRangeIndexList.length - 1];
 
-                if (startPoint) {
-                    var overviewMetric = this.overviewModel.metricList[metricIndex];
-                    var startY = this.drawHorizontalTimeLine(overviewMetric, group);
-                    var endIndex = group.timeRangeIndexList[group.timeRangeIndexList.length - 1];
-                    var startX = startPoint.x;
-                    var endX = instanceMetric.data[endIndex].x + this.config.overview.pointWidth;
-                    var width = endX - startX;
-                    var height = group.y - startY;
-                    this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
+                if (this.isCompressed && metricIndex != group.timeRangeMetricIndex) {
+                    var previousPointIndex = 0;
+                    var groupList = this.getCurrentMultiAttributeGroupList();
+
+                    for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+                        var currentPointIndex = overviewMetric.compressedTimeIndexList[compressedTimeIndex];
+
+                        if (this.isBetween(startRangeIndex, previousPointIndex, currentPointIndex)) {
+                            startPoint = this.getTimeRangePointWrapper(previousPointIndex, groupList, metricIndex);
+                        }
+
+                        if (this.isBetween(endRangeIndex, previousPointIndex, currentPointIndex)) {
+                            endPoint = this.getTimeRangePointWrapper(currentPointIndex, groupList, metricIndex);
+                        }
+
+                        previousPointIndex = currentPointIndex;
+                    }
+
+                } else {
+                    startPoint = instanceMetric.data[startRangeIndex];
+                    endPoint = instanceMetric.data[endRangeIndex];
                 }
+
+                this.drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint);
             });
         }
+    }
+
+    getTimeRangePointWrapper(pointIndex, groupList, metricIndex) {
+        for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+            var instance = groupList[groupIndex].instanceList[0];
+            var point = instance.metricList[metricIndex].data[pointIndex];
+
+            if (point) {
+                return point;
+            }
+        }
+    }
+
+    drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint) {
+        var startY = this.drawHorizontalTimeLine(overviewMetric, group);
+        var startX = startPoint.x;
+        var endX = endPoint.x + this.config.overview.pointWidth;
+        var width = endX - startX;
+        var height = group.y - startY;
+        this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
     }
 
     mouseUpOnOverView(evt) {
@@ -1923,10 +1963,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
             var metric = this.overviewModel.metricList[i];
 
-            // only update focus graph if mouse is pointing on one of metric overview graphs
-            if (this.checkMouseIsInMetric(metric)) {
-                this.drawFocusGraph();
-                break;
+            if (metric) {
+                // only update focus graph if mouse is pointing on one of metric overview graphs
+                if (this.checkMouseIsInMetric(metric)) {
+                    this.drawFocusGraph();
+                    break;
+                }
             }
         }
     }
@@ -1963,13 +2005,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
             var metric = this.overviewModel.metricList[i];
 
-            if (this.checkMouseIsInMetric(metric)) {
-                this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
-                this.focusModel.sourceMetricIndex = i;
+            if (metric) {
+                if (this.checkMouseIsInMetric(metric)) {
+                    this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
+                    this.focusModel.sourceMetricIndex = i;
 
-                return Math.min(Math.max(metric.startX,
-                    this.overviewModel.mousePosition.x - this.config.focusArea.focusAreaSize),
-                    metric.endX - this.getFocusAreaSize()) - metric.startX;
+                    return Math.min(Math.max(metric.startX,
+                        this.overviewModel.mousePosition.x - this.config.focusArea.focusAreaSize),
+                        metric.endX - this.getFocusAreaSize()) - metric.startX;
+                }
             }
         }
     }
