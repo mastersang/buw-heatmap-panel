@@ -108,7 +108,7 @@
             <span style="margin-left: {{ctrl.toDateLeftMargin}}px">{{ctrl.focusedToDate}}</span>
         </div>
 
-        <div id="focusGraphContainer" style="height: 350px; overflow: auto">
+        <div id="focusGraphContainer" style="height: 400px; overflow: auto">
             <!-- Grouped -->
             <div ng-if="ctrl.isGrouped">
                 <div ng-repeat="group in ctrl.focusModel.groupList">
@@ -151,7 +151,7 @@
                                     <div style="border-bottom: 1px dotted black">
                                         <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}"
                                             width="{{ctrl.focusGraphWidth}}" height="{{ctrl.focusGraphHeight}}"
-                                            ng-click="ctrl.selectNode(instance, $event, $parent.$index, $index)"></canvas>
+                                            ng-click="ctrl.selectGroup(instance, $event, $parent.$index, $index)"></canvas>
                                     </div>
                                 </td>
                             </tr>
@@ -186,8 +186,7 @@
             <!-- Ungrouped -->
             <div ng-if="!ctrl.isGrouped">
                 <div ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
-                    style="border-bottom:1px solid black; padding-top: 5px"
-                    ng-click="ctrl.selectNode(ctrl.focusModel.data[$index])">
+                    style="border-bottom:1px solid black; padding-top: 5px" ng-click="ctrl.selectNode($index, $event)">
                     <table>
                         <tr id="focusGraphRow">
                             <td

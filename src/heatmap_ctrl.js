@@ -1705,7 +1705,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     endPoint = instanceMetric.data[endRangeIndex];
                 }
 
-                this.drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint);
+                if (startPoint) {
+                    this.drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint);
+                }
             });
         }
     }
@@ -2243,7 +2245,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     drawGroupedFocusGraphWrapper(group, groupIndex, instance, instanceIndex) {
         // full time range
         var maxMetricLength = this.getMaxMetricLength();
-        var canvas = this.getFocusGroupCanvas(groupIndex, instanceIndex);
+        var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
         this.drawGroupedFocusGraphInstance(canvas, instance, Array.from(Array(maxMetricLength).keys()), this.getFocusGraphPointWidth());
 
         // selected time range
@@ -2254,7 +2256,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    getFocusGroupCanvas(groupIndex, instanceIndex) {
+    getGroupedFocusCanvas(groupIndex, instanceIndex) {
         return this.getElementByID("focusGraphCanvas-" + groupIndex + "-" + instanceIndex);
     }
 
@@ -2299,11 +2301,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawUngroupedFocusGraph() {
         this.focusModel.data.forEach((instance, instanceIndex) => {
-            var canvas = this.getElementByID("focusGraphCanvas-" + instanceIndex);
+            var canvas = this.getUngroupedFocusCanvas(instanceIndex);
             var context = this.getCanvasContext(canvas);
             context.clearRect(0, 0, canvas.width, canvas.height);
             this.drawFocusGraphInstance(instance, context, Array.from(Array(this.getMaxMetricLength()).keys()), this.config.focusGraph.ungroupedPointWidth);
         });
+    }
+
+    getUngroupedFocusCanvas(instanceIndex) {
+        return this.getElementByID("focusGraphCanvas-" + instanceIndex);
     }
 
     moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y, layerRange) {
@@ -2438,7 +2444,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
     }
 
-    selectNode(instance, evt, groupIndex, instanceIndex) {
+    selectGroup(instance, evt, groupIndex, instanceIndex) {
         if (this.isGrouped) {
             this.focusModel.groupList.forEach((group) => {
                 group.instanceList.forEach((instance) => {
@@ -2452,11 +2458,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
 
         instance.isSelected = true;
-        this.showPopup(instance, evt, groupIndex, instanceIndex)
+        var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
+        this.showPopup(instance, evt, groupIndex, instanceIndex, canvas)
     }
 
-    showPopup(instance, evt, groupIndex, instanceIndex) {
-        var canvas = this.getFocusGroupCanvas(groupIndex, instanceIndex);
+    showPopup(instance, evt, canvas) {
         var mousePos = this.getMousePos(evt, canvas);
         var metricHeight = this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics;
 
@@ -2472,6 +2478,13 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 break;
             }
         }
+    }
+
+    selectNode(index, evt) {
+        var instance = this.focusModel.data[index];
+        instance.isSelected = true;
+        var canvas = this.getUngroupedFocusCanvas(index);
+        this.showPopup(instance, evt, canvas)
     }
 
     removeMetric(metric) {

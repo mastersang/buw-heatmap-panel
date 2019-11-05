@@ -1922,7 +1922,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                   endPoint = instanceMetric.data[endRangeIndex];
                 }
 
-                _this44.drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint);
+                if (startPoint) {
+                  _this44.drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint);
+                }
               });
             }
           }
@@ -2532,7 +2534,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function drawGroupedFocusGraphWrapper(group, groupIndex, instance, instanceIndex) {
             // full time range
             var maxMetricLength = this.getMaxMetricLength();
-            var canvas = this.getFocusGroupCanvas(groupIndex, instanceIndex);
+            var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
             this.drawGroupedFocusGraphInstance(canvas, instance, Array.from(Array(maxMetricLength).keys()), this.getFocusGraphPointWidth()); // selected time range
 
             if (group.overviewGroup.timeRangeIndexList) {
@@ -2542,8 +2544,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             }
           }
         }, {
-          key: "getFocusGroupCanvas",
-          value: function getFocusGroupCanvas(groupIndex, instanceIndex) {
+          key: "getGroupedFocusCanvas",
+          value: function getGroupedFocusCanvas(groupIndex, instanceIndex) {
             return this.getElementByID("focusGraphCanvas-" + groupIndex + "-" + instanceIndex);
           }
         }, {
@@ -2593,7 +2595,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var _this60 = this;
 
             this.focusModel.data.forEach(function (instance, instanceIndex) {
-              var canvas = _this60.getElementByID("focusGraphCanvas-" + instanceIndex);
+              var canvas = _this60.getUngroupedFocusCanvas(instanceIndex);
 
               var context = _this60.getCanvasContext(canvas);
 
@@ -2601,6 +2603,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
               _this60.drawFocusGraphInstance(instance, context, Array.from(Array(_this60.getMaxMetricLength()).keys()), _this60.config.focusGraph.ungroupedPointWidth);
             });
+          }
+        }, {
+          key: "getUngroupedFocusCanvas",
+          value: function getUngroupedFocusCanvas(instanceIndex) {
+            return this.getElementByID("focusGraphCanvas-" + instanceIndex);
           }
         }, {
           key: "moveContextBasedOnValue",
@@ -2747,8 +2754,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             });
           }
         }, {
-          key: "selectNode",
-          value: function selectNode(instance, evt, groupIndex, instanceIndex) {
+          key: "selectGroup",
+          value: function selectGroup(instance, evt, groupIndex, instanceIndex) {
             if (this.isGrouped) {
               this.focusModel.groupList.forEach(function (group) {
                 group.instanceList.forEach(function (instance) {
@@ -2762,12 +2769,12 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             }
 
             instance.isSelected = true;
-            this.showPopup(instance, evt, groupIndex, instanceIndex);
+            var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
+            this.showPopup(instance, evt, groupIndex, instanceIndex, canvas);
           }
         }, {
           key: "showPopup",
-          value: function showPopup(instance, evt, groupIndex, instanceIndex) {
-            var canvas = this.getFocusGroupCanvas(groupIndex, instanceIndex);
+          value: function showPopup(instance, evt, canvas) {
             var mousePos = this.getMousePos(evt, canvas);
             var metricHeight = this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics;
 
@@ -2782,6 +2789,14 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                 break;
               }
             }
+          }
+        }, {
+          key: "selectNode",
+          value: function selectNode(index, evt) {
+            var instance = this.focusModel.data[index];
+            instance.isSelected = true;
+            var canvas = this.getUngroupedFocusCanvas(index);
+            this.showPopup(instance, evt, canvas);
           }
         }, {
           key: "removeMetric",
