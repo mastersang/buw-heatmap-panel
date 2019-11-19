@@ -81,7 +81,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             this.initialiseGeneralConfig();
             this.initialiseOverviewConfig();
             this.initialiseFocusAreaConfig();
+            this.initialiseHistogramConfig();
             this.initialiseTimeIndicatorConfig();
+            this.initialiseHistogramConfig();
             this.initialiseFocusGraphConfig();
           }
         }, {
@@ -137,6 +139,15 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             };
           }
         }, {
+          key: "initialiseHistogramConfig",
+          value: function initialiseHistogramConfig() {
+            this.config.histogram = {
+              marginBetweenAxesAndNumbers: 10,
+              verticalAxisLenghth: 500,
+              barWidth: 5
+            };
+          }
+        }, {
           key: "initialiseFocusGraphConfig",
           value: function initialiseFocusGraphConfig() {
             var _this$config$focusGra;
@@ -157,7 +168,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               predefinedMetricList: [{
                 name: "CPU",
                 unit: "%",
-                query: "node_load1{job='node'}"
+                query: "avg by (instance) (node_load1{job='node'}) * 100 / count by (instance) (count by (instance, cpu) (node_cpu_seconds_total{job='node'}))"
               }, {
                 name: "Memory",
                 unit: "%",
@@ -175,7 +186,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                 unit: "°C",
                 query: "avg by (instance) (smartmon_temperature_celsius_raw_value{job='node',smart_id='194'})"
               }]
-            };
+            }; //   this.panel.predefinedMetricList = this.panelDefaults.predefinedMetricList;
+            //   this.panel.metricList = this.panel.predefinedMetricList;
 
             _.defaults(this.panel, this.panelDefaults);
 
@@ -217,6 +229,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function initialiseStartingVariables() {
             this.firstLoad = true;
             this.overviewModel = {};
+            this.histogramModel = {};
             this.overviewModel.groupMarkerList = [];
             this.focusModel = {};
             this.focusModel.groupList = [];
@@ -440,6 +453,10 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                 instance.values.forEach(function (point) {
                   _this7.checkAndSetOverviewMinMax(metric, point);
                 });
+
+                if (metric.max > 100) {
+                  console.log(instance.metric.instance);
+                }
               });
             });
           }
@@ -515,7 +532,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var _this9 = this;
 
             this.overviewModel.metricList.forEach(function (metric, metricIndex) {
-              metric.histogramData = new Map();
+              metric.histogram = {};
+              metric.histogram.data = new Map();
               metric.data.forEach(function (metricInstance) {
                 var newInstance = _.find(_this9.overviewModel.data, function (search) {
                   return metricInstance.metric.instance == search.instance;
@@ -531,17 +549,39 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                   point.value = value[1];
                   newInstance.metricList[metricIndex].data.push(point);
 
-                  if (metric.histogramData.has(point.value)) {
-                    var occurences = metric.histogramData.get(point.value);
-                    metric.histogramData.set(point.value, occurences + 1);
+                  if (metric.histogram.data.has(point.value)) {
+                    var occurences = metric.histogram.data.get(point.value);
+                    metric.histogram.data.set(point.value, occurences + 1);
                   } else {
-                    metric.histogramData.set(point.value, 1);
+                    metric.histogram.data.set(point.value, 1);
                   }
                 });
               });
-              metric.histogramData = new Map(_toConsumableArray(metric.histogramData).sort(function (first, second) {
+              metric.histogram.data = new Map(_toConsumableArray(metric.histogram.data).sort(function (first, second) {
                 return first[1] - second[2];
               }));
+
+              _this9.setHistogramMinMax(metric.histogram);
+            });
+          }
+        }, {
+          key: "setHistogramMinMax",
+          value: function setHistogramMinMax(histogram) {
+            histogram.min = -1;
+            histogram.max = -1;
+            histogram.data.forEach(function (occurences, value) {
+              if (histogram.min == -1) {
+                histogram.min = occurences;
+                histogram.max = occurences;
+              } else {
+                if (histogram.min > occurences) {
+                  histogram.min = occurences;
+                }
+
+                if (histogram.max < occurences) {
+                  histogram.max = occurences;
+                }
+              }
             });
           }
         }, {
@@ -1606,11 +1646,59 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function drawHistogram() {
             this.histogramCanvasContext.clearRect(0, 0, this.histogramCanvas.width, this.histogramCanvas.height);
             var overviewMetric = this.overviewModel.metricList[this.overviewModel.selectedMetricIndex];
-            this.histogramCanvasContext.font = "bold " + this.config.overview.metricFontSize + "px Arial";
             var panelMetric = this.panel.metricList[this.overviewModel.selectedMetricIndex];
-            this.histogramCanvasContext.fillStyle = this.getMetricDarkestColor(panelMetric);
-            var unit = panelMetric.unit;
-            this.histogramCanvasContext.fillText(overviewMetric.max + " " + unit, 0, this.overviewModel.labelTextHeight);
+            this.drawHistogramAxes(overviewMetric, panelMetric);
+          }
+        }, {
+          key: "drawHistogramAxes",
+          value: function drawHistogramAxes(overviewMetric, panelMetric) {
+            this.histogramCanvasContext.font = this.config.overview.metricFontSize + "px Arial";
+            this.histogramModel.verticalAxisStartY = this.overviewModel.labelTextHeight + this.config.histogram.marginBetweenAxesAndNumbers;
+            this.histogramCanvasContext.fillStyle = "black";
+            this.histogramCanvasContext.strokeStyle = "black";
+            this.histogramCanvasContext.font = "bold " + this.config.overview.metricFontSize + "px Arial";
+            this.drawHistogramVerticalAxis(overviewMetric);
+            this.drawHistogramHorizontalAxis(overviewMetric, panelMetric);
+            this.drawHistogramMaxValueAndOccurence(overviewMetric);
+          }
+        }, {
+          key: "drawHistogramVerticalAxis",
+          value: function drawHistogramVerticalAxis(overviewMetric) {
+            var occurences = "occurences";
+            var maxOccurenceWidth = this.histogramCanvasContext.measureText(overviewMetric.histogram.max).width;
+            var verticalLabelWidth = this.histogramCanvasContext.measureText(occurences).width;
+            this.histogramModel.horizontalAxisStartX = maxOccurenceWidth + this.config.histogram.marginBetweenAxesAndNumbers + verticalLabelWidth / 2;
+            this.histogramCanvasContext.fillText(occurences, this.histogramModel.horizontalAxisStartX - verticalLabelWidth / 2, this.overviewModel.labelTextHeight);
+            this.histogramModel.horizontalAxisY = this.histogramModel.verticalAxisStartY + this.config.histogram.verticalAxisLenghth;
+            this.histogramCanvasContext.beginPath();
+            this.histogramCanvasContext.moveTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.verticalAxisStartY);
+            this.histogramCanvasContext.lineTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.horizontalAxisY);
+            this.histogramCanvasContext.stroke();
+            this.histogramCanvasContext.closePath();
+          }
+        }, {
+          key: "drawHistogramHorizontalAxis",
+          value: function drawHistogramHorizontalAxis(overviewMetric, panelMetric) {
+            this.histogramModel.horizontalAxisEndX = this.histogramModel.horizontalAxisStartX + this.config.histogram.barWidth * overviewMetric.max;
+            var labelX = this.histogramModel.horizontalAxisEndX + this.config.histogram.marginBetweenAxesAndNumbers;
+            var labelY = this.histogramModel.horizontalAxisY + this.overviewModel.labelTextHeight / 2;
+            this.histogramCanvasContext.fillText(panelMetric.unit, labelX, labelY);
+            this.histogramCanvasContext.beginPath();
+            this.histogramCanvasContext.moveTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.horizontalAxisY);
+            this.histogramCanvasContext.lineTo(this.histogramModel.horizontalAxisEndX, this.histogramModel.horizontalAxisY);
+            this.histogramCanvasContext.stroke();
+            this.histogramCanvasContext.closePath();
+          }
+        }, {
+          key: "drawHistogramMaxValueAndOccurence",
+          value: function drawHistogramMaxValueAndOccurence(overviewMetric) {
+            this.histogramCanvasContext.font = this.config.overview.metricFontSize + "px Arial";
+            this.histogramCanvasContext.fillText(overviewMetric.histogram.max, 0, this.histogramModel.verticalAxisStartY + this.overviewModel.labelTextHeight / 2);
+            var maxValueWidth = this.histogramCanvasContext.measureText(overviewMetric.max).width;
+            var valueLabelY = this.histogramModel.horizontalAxisY + this.config.histogram.marginBetweenAxesAndNumbers + this.overviewModel.labelTextHeight;
+            this.histogramCanvasContext.fillText(overviewMetric.max, this.histogramModel.horizontalAxisEndX - maxValueWidth / 2, valueLabelY);
+            var originX = this.histogramModel.horizontalAxisStartX - this.overviewModel.labelTextHeight - this.config.histogram.marginBetweenAxesAndNumbers;
+            this.histogramCanvasContext.fillText(0, originX, valueLabelY);
           }
         }, {
           key: "moveMouseOnOverview",
@@ -1621,10 +1709,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
               if (this.overviewModel.selectedMetricIndex >= 0) {
                 if (this.isBetween(this.overviewModel.mousePosition.y, 0, this.overviewModel.overviewStartY)) {
-                  this.setOverviewCursorToPointer();
                   this.isSelectingMetricLabel = true;
+                  this.setOverviewCursorToPointer();
                 } else {
                   this.isSelectingMetricLabel = false;
+                  this.initialiseOverviewCanvasCursor();
                 }
 
                 if (this.isGrouped) {

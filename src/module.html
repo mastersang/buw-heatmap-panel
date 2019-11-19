@@ -2,7 +2,7 @@
     <img style="position: absolute; bottom: 0px" ng-show="ctrl.isLoading" src="/public/img/loading.gif">
 
     <div ng-show="ctrl.showHistogram"
-        style="position: fixed; width: 1600px; height: 600px; left: 200px; top: 200px; z-index: 999; background-color: white; padding:5px">
+        style="position: fixed; width: 1700px; height: 700px; left: 200px; top: 200px; z-index: 999; background-color: white; padding:5px; overflow: scroll;">
         <button ng-click="ctrl.showHistogram = false">
             Close
         </button>
@@ -10,7 +10,7 @@
 
         <br>
 
-        <canvas id="histogramCanvas" width="1500" height="500" style="margin-top: 10px;"></canvas>
+        <canvas id="histogramCanvas" width="9999" height="600" style="margin-top: 10px;"></canvas>
     </div>
 
     <!-- Viewing settings -->
