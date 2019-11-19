@@ -1,6 +1,18 @@
 <div style="width: 100%; height: 100%; overflow: auto">
     <img style="position: absolute; bottom: 0px" ng-show="ctrl.isLoading" src="/public/img/loading.gif">
 
+    <div ng-show="ctrl.showHistogram"
+        style="position: fixed; width: 1600px; height: 600px; left: 200px; top: 200px; z-index: 999; background-color: white; padding:5px">
+        <button ng-click="ctrl.showHistogram = false">
+            Close
+        </button>
+
+
+        <br>
+
+        <canvas id="histogramCanvas" width="1500" height="500" style="margin-top: 10px;"></canvas>
+    </div>
+
     <!-- Viewing settings -->
     <table>
         <tr>
