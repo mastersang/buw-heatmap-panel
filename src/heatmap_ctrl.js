@@ -82,8 +82,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseHistogramConfig() {
         this.config.histogram = {
             marginBetweenAxesAndNumbers: 10,
-            verticalAxisLenghth: 500,
-            barWidth: 5
+            verticalAxisLength: 500,
+            barWidth: 5,
+            minimumBarHeight: 2,
+            marginBetweenSliderAndChart: 50,
+            thresholdBarLength: 10,
+            maxOffsetToSelectBar: 20
         }
     }
 
@@ -156,11 +160,13 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseMetricsColorList() {
         if (this.panel.metricList) {
             this.panel.metricList.forEach((metric) => {
+                // add lightest shade as defined by user
                 metric.colorList = [];
                 metric.colorList.push(metric.color);
                 var luminanceChange = -this.config.maxLuminanceChange / this.config.colorCount;
 
-                for (var i = 0; i < this.config.colorCount - 1; ++i) {
+                // add the other shades
+                for (var i = 1; i < this.config.colorCount; ++i) {
                     var color = this.changeColorLuminance(metric.color, i * luminanceChange);
                     metric.colorList.push(color);
                 }
@@ -239,7 +245,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseOverviewCanvasCursor() {
-        this.overviewCursor = "crosshair";
+        this.overviewCursor = this.isGrouped ? "default" : "crosshair";
     }
 
     initialiseUIElements() {
@@ -371,10 +377,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 instance.values.forEach((point) => {
                     this.checkAndSetOverviewMinMax(metric, point);
                 });
-
-                if (metric.max > 100) {
-                    console.log(instance.metric.instance);
-                }
             });
         });
     }
@@ -399,7 +401,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseColorMap() {
         this.overviewModel.metricList.forEach((metric, index) => {
             var colorList = this.panel.metricList[index].colorList;
-            metric.layerRange = metric.max / colorList.length;
+            metric.layerRange = Math.round(metric.max / colorList.length);
 
             // map a range of values to a color
             metric.colorMap = this.getColorMap(metric, colorList);
@@ -469,7 +471,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             });
 
             metric.histogram.data = new Map([...metric.histogram.data].sort((first, second) => {
-                return first[1] - second[2];
+                return first[0] - second[0];
             }));
 
             this.setHistogramMinMax(metric.histogram);
@@ -1226,8 +1228,99 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return moment(date).format(this.config.dateFormat);
     }
 
-    selectOverviewMode() {
-        this.drawOverview();
+    closeHistogram() {
+        this.showHistogram = false;
+
+        if (this.changedColorThreshold) {
+            this.changedColorThreshold = false;
+            this.drawOverview();
+            this.drawFocusGraph();
+        }
+    }
+
+    moveMouseOnHistogram(evt) {
+        this.histogramModel.mousePosition = this.getMousePos(evt, this.histogramCanvas);
+
+        if (this.histogramModel.isSelectingBar) {
+            this.setNewThresholdValue();
+        } else {
+            this.checkAndSetSelectedHistogramThresholdBar();
+        }
+    }
+
+    setNewThresholdValue() {
+        this.changedColorThreshold = true;
+        // defines the max/min value from the next threshold that current threshold can be adjusted to
+        var offsetValue = Math.round(this.config.histogram.maxOffsetToSelectBar / this.config.histogram.barWidth);
+        var value = Math.round((this.histogramModel.mousePosition.x - this.histogramModel.horizontalAxisStartX) / this.config.histogram.barWidth);
+        value = Math.max(value, 0 + offsetValue);
+        value = Math.min(value, this.histogramModel.metric.max - offsetValue);
+
+        this.histogramModel.metric.colorMap.forEach((color, threshold) => {
+            if (threshold != this.histogramModel.selectedBar.threshold) {
+                if (value >= this.histogramModel.selectedBar.threshold.max) {
+                    // move right
+                    if (threshold.min == this.histogramModel.selectedBar.threshold.max) {
+                        value = Math.min(value, threshold.max - offsetValue);
+                        threshold.min = value;
+                    }
+                } else {
+                    // move left
+                    if (this.histogramModel.selectedBar.threshold.min == 0) {
+                        // left most threshold
+                        if (threshold.min == this.histogramModel.selectedBar.threshold.max) {
+                            threshold.min = value;
+                        }
+                    } else {
+                        // left threshold
+                        if (threshold.max == this.histogramModel.selectedBar.threshold.min) {
+                            value = Math.max(value, threshold.max + offsetValue);
+                        }
+
+                        // right threshold
+                        if (threshold.min == this.histogramModel.selectedBar.threshold.max) {
+                            threshold.min = value;
+                        }
+                    }
+                }
+            }
+        });
+
+        this.histogramModel.selectedBar.threshold.max = value;
+        this.drawHistogram();
+    }
+
+    checkAndSetSelectedHistogramThresholdBar() {
+        this.histogramCursor = "default";
+        this.histogramModel.selectedBar = null;
+        var topY = this.histogramModel.sliderY - this.config.histogram.thresholdBarLength / 2;
+        var bottomY = this.histogramModel.sliderY + this.config.histogram.thresholdBarLength / 2;
+
+        if (this.isBetween(this.histogramModel.mousePosition.y, topY, bottomY)) {
+            for (var i = 0; i < this.histogramModel.thresholdBarList.length; ++i) {
+                var bar = this.histogramModel.thresholdBarList[i];
+                var leftX = bar.x - this.config.histogram.maxOffsetToSelectBar;
+                var rightX = bar.x + this.config.histogram.maxOffsetToSelectBar;
+
+                if (this.isBetween(this.histogramModel.mousePosition.x, leftX, rightX)) {
+                    this.histogramCursor = "pointer";
+                    this.histogramModel.selectedBar = bar;
+                    break;
+                }
+            }
+        }
+    }
+
+    mouseDownOnHistogram() {
+        if (this.histogramModel.selectedBar) {
+            this.histogramModel.isSelectingBar = true;
+        }
+    }
+
+    mouseUpOnHistogram() {
+        this.histogramModel.isSelectingBar = false;
+        this.histogramModel.selectedBar = null;
+        this.histogramCursor = "default";
     }
 
     selectGroupingMode() {
@@ -1445,30 +1538,31 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawHistogram() {
         this.histogramCanvasContext.clearRect(0, 0, this.histogramCanvas.width, this.histogramCanvas.height);
-        var overviewMetric = this.overviewModel.metricList[this.overviewModel.selectedMetricIndex];
-        var panelMetric = this.panel.metricList[this.overviewModel.selectedMetricIndex];
-        this.drawHistogramAxes(overviewMetric, panelMetric);
+        this.histogramModel.metric = this.overviewModel.metricList[this.overviewModel.selectedMetricIndex];
+        this.drawHistogramAxes();
+        this.drawHistogramMaxValueAndOccurence();
+        this.drawHistogramBars();
+        this.drawHistogramThresholdSlider();
     }
 
-    drawHistogramAxes(overviewMetric, panelMetric) {
+    drawHistogramAxes() {
         this.histogramCanvasContext.font = this.config.overview.metricFontSize + "px Arial";
         this.histogramModel.verticalAxisStartY = this.overviewModel.labelTextHeight + this.config.histogram.marginBetweenAxesAndNumbers;
+        this.histogramCanvasContext.lineWdith = 1;
         this.histogramCanvasContext.fillStyle = "black";
-        this.histogramCanvasContext.strokeStyle = "black";
+        this.histogramCanvasContext.strokeStyle = "gray";
         this.histogramCanvasContext.font = "bold " + this.config.overview.metricFontSize + "px Arial";
-        this.drawHistogramVerticalAxis(overviewMetric);
-        this.drawHistogramHorizontalAxis(overviewMetric, panelMetric);
-        this.drawHistogramMaxValueAndOccurence(overviewMetric);
-        this.drawHistogramBars();
+        this.drawHistogramVerticalAxis();
+        this.drawHistogramHorizontalAxis();
     }
 
-    drawHistogramVerticalAxis(overviewMetric) {
+    drawHistogramVerticalAxis() {
         var occurences = "occurences";
-        var maxOccurenceWidth = this.histogramCanvasContext.measureText(overviewMetric.histogram.max).width;
+        var maxOccurenceWidth = this.histogramCanvasContext.measureText(this.histogramModel.metric.histogram.max).width;
         var verticalLabelWidth = this.histogramCanvasContext.measureText(occurences).width;
         this.histogramModel.horizontalAxisStartX = maxOccurenceWidth + this.config.histogram.marginBetweenAxesAndNumbers + verticalLabelWidth / 2;
         this.histogramCanvasContext.fillText(occurences, this.histogramModel.horizontalAxisStartX - verticalLabelWidth / 2, this.overviewModel.labelTextHeight);
-        this.histogramModel.horizontalAxisY = this.histogramModel.verticalAxisStartY + this.config.histogram.verticalAxisLenghth;
+        this.histogramModel.horizontalAxisY = this.histogramModel.verticalAxisStartY + this.config.histogram.verticalAxisLength;
         this.histogramCanvasContext.beginPath();
         this.histogramCanvasContext.moveTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.verticalAxisStartY);
         this.histogramCanvasContext.lineTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.horizontalAxisY);
@@ -1476,10 +1570,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.histogramCanvasContext.closePath();
     }
 
-    drawHistogramHorizontalAxis(overviewMetric, panelMetric) {
-        this.histogramModel.horizontalAxisEndX = this.histogramModel.horizontalAxisStartX + this.config.histogram.barWidth * overviewMetric.max;
+    drawHistogramHorizontalAxis() {
+        this.histogramModel.horizontalAxisEndX = this.histogramModel.horizontalAxisStartX +
+            this.config.histogram.barWidth * (this.histogramModel.metric.max + 1);
         var labelX = this.histogramModel.horizontalAxisEndX + this.config.histogram.marginBetweenAxesAndNumbers;
         var labelY = this.histogramModel.horizontalAxisY + this.overviewModel.labelTextHeight / 2;
+        var panelMetric = this.panel.metricList[this.overviewModel.selectedMetricIndex];
         this.histogramCanvasContext.fillText(panelMetric.unit, labelX, labelY);
         this.histogramCanvasContext.beginPath();
         this.histogramCanvasContext.moveTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.horizontalAxisY);
@@ -1488,18 +1584,73 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.histogramCanvasContext.closePath();
     }
 
-    drawHistogramMaxValueAndOccurence(overviewMetric) {
+    drawHistogramMaxValueAndOccurence() {
         this.histogramCanvasContext.font = this.config.overview.metricFontSize + "px Arial";
-        this.histogramCanvasContext.fillText(overviewMetric.histogram.max, 0, this.histogramModel.verticalAxisStartY + this.overviewModel.labelTextHeight / 2);
-        var maxValueWidth = this.histogramCanvasContext.measureText(overviewMetric.max).width;
+        var occurenceLabelY = this.histogramModel.verticalAxisStartY + this.overviewModel.labelTextHeight / 2
+        this.histogramCanvasContext.fillText(this.histogramModel.metric.histogram.max, 0, occurenceLabelY);
+        var maxValueWidth = this.histogramCanvasContext.measureText(this.histogramModel.metric.max).width;
         var valueLabelY = this.histogramModel.horizontalAxisY + this.config.histogram.marginBetweenAxesAndNumbers + this.overviewModel.labelTextHeight;
-        this.histogramCanvasContext.fillText(overviewMetric.max, this.histogramModel.horizontalAxisEndX - maxValueWidth / 2, valueLabelY);
+        this.histogramCanvasContext.fillText(this.histogramModel.metric.max, this.histogramModel.horizontalAxisEndX - maxValueWidth / 2, valueLabelY);
         var originX = this.histogramModel.horizontalAxisStartX - this.overviewModel.labelTextHeight - this.config.histogram.marginBetweenAxesAndNumbers;
         this.histogramCanvasContext.fillText(0, originX, valueLabelY);
     }
 
-    drawHistogramBars(overviewMetric) {
+    drawHistogramBars() {
+        var occurenceStep = this.config.histogram.verticalAxisLength / this.histogramModel.metric.histogram.max;
 
+        this.histogramModel.metric.histogram.data.forEach((occurences, value) => {
+            this.histogramCanvasContext.fillStyle = this.getColorFromMap(value, this.histogramModel.metric.colorMap);
+            var x = this.histogramModel.horizontalAxisStartX + this.config.histogram.barWidth * value;
+            var y = this.histogramModel.horizontalAxisY - occurenceStep * occurences;
+            var height = this.histogramModel.horizontalAxisY - y;
+            var minHeight = this.config.histogram.minimumBarHeight;
+
+            if (height < minHeight) {
+                y = this.histogramModel.horizontalAxisY - minHeight;
+                height = minHeight;
+            }
+
+            this.histogramCanvasContext.fillRect(x, y, this.config.histogram.barWidth, height);
+        });
+    }
+
+    drawHistogramThresholdSlider() {
+        this.histogramCanvasContext.strokeStyle = "black";
+        this.drawHistogramSliderLine();
+        this.drawHistogramThresholdBars();
+    }
+
+    drawHistogramSliderLine() {
+        this.histogramModel.sliderY = this.histogramModel.horizontalAxisY + this.config.histogram.marginBetweenSliderAndChart;
+        this.histogramCanvasContext.beginPath();
+        this.histogramCanvasContext.moveTo(this.histogramModel.horizontalAxisStartX, this.histogramModel.sliderY);
+        this.histogramCanvasContext.lineTo(this.histogramModel.horizontalAxisEndX, this.histogramModel.sliderY);
+        this.histogramCanvasContext.stroke();
+        this.histogramCanvasContext.closePath();
+    }
+
+    drawHistogramThresholdBars() {
+        var thresholdBarY = this.histogramModel.sliderY - this.config.histogram.thresholdBarLength / 2;
+        this.histogramModel.thresholdBarList = [];
+        var i = 0;
+
+        this.histogramModel.metric.colorMap.forEach((color, threshold) => {
+            var bar = {};
+            bar.threshold = threshold;
+            bar.x = this.histogramModel.horizontalAxisStartX + this.config.histogram.barWidth * threshold.max;
+
+            // no need to draw slider bar for last threshold
+            if (i < this.histogramModel.metric.colorMap.size - 1) {
+                this.histogramCanvasContext.beginPath();
+                this.histogramCanvasContext.moveTo(bar.x, thresholdBarY);
+                this.histogramCanvasContext.lineTo(bar.x, thresholdBarY + this.config.histogram.thresholdBarLength);
+                this.histogramCanvasContext.stroke();
+                this.histogramCanvasContext.closePath();
+                ++i;
+            }
+
+            this.histogramModel.thresholdBarList.push(bar);
+        });
     }
 
     moveMouseOnOverview(evt) {
@@ -1512,16 +1663,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     this.isSelectingMetricLabel = true;
                     this.setOverviewCursorToPointer();
                 } else {
-                    this.isSelectingMetricLabel = false;
-                    this.initialiseOverviewCanvasCursor();
+                    this.deselectMetricLabel();
                 }
-
-                if (this.isGrouped) {
-                    this.handleMouseMoveOnGroupedOverview();
-                } else if (!this.isCompressed && !this.focusAreaIsFixed) {
-                    this.drawFocus(evt);
-                }
+            } else {
+                this.deselectMetricLabel();
             }
+
+            if (this.isGrouped) {
+                this.handleMouseMoveOnGroupedOverview();
+            } else if (!this.isCompressed && !this.focusAreaIsFixed) {
+                this.drawFocus(evt);
+            }
+        } else {
+            this.deselectMetricLabel();
         }
     }
 
@@ -1563,8 +1717,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewCursor = "pointer";
     }
 
-    handleMouseMoveOnGroupedOverview() {
+    deselectMetricLabel() {
+        this.isSelectingMetricLabel = false;
         this.initialiseOverviewCanvasCursor();
+    }
+
+    handleMouseMoveOnGroupedOverview() {
         this.overviewModel.hoveredGroup = null;
         this.overviewModel.hoveredMarker = null;
         this.checkAndSetSelectedOverviewMarker();
@@ -2276,19 +2434,27 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseInstanceLayers(instance) {
-        instance.metricList.forEach((metric, metricIndex) => {
-            this.panel.metricList[metricIndex].colorList.forEach(() => {
+        instance.metricList.forEach((instanceMetric, metricIndex) => {
+            for (var i = 0; i < this.config.colorCount; ++i) {
                 var layer = {};
                 layer.valueList = [];
-                metric.layerList.push(layer);
-            });
+                instanceMetric.layerList.push(layer);
+            }
 
-            metric.data.forEach((point) => {
+            var overviewMetric = this.overviewModel.metricList[metricIndex];
+
+            instanceMetric.data.forEach((point) => {
                 var value = point.value;
+                var colorList = this.panel.metricList[metricIndex].colorList;
 
-                metric.layerList.forEach((layer) => {
-                    layer.valueList.push(value > 0 ? value : 0);
-                    value -= this.overviewModel.metricList[metricIndex].layerRange;
+                instanceMetric.layerList.forEach((layer, layerIndex) => {
+                    overviewMetric.colorMap.forEach((color, threshold) => {
+                        if (color == colorList[layerIndex]) {
+                            layer.valueList.push(value > 0 ? value : 0);
+                            value -= threshold.max;
+                            layer.range = threshold.max - threshold.min;
+                        }
+                    });
                 });
             });
         });
@@ -2435,10 +2601,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 valueIndexList.forEach((valueIndex, positionIndex) => {
                     var value = layer.valueList[valueIndex];
 
-                    if (value != undefined) {
+                    if (value != null) {
                         x = pointWidth * positionIndex;
-                        this.moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y,
-                            this.overviewModel.metricList[metricIndex].layerRange);
+                        this.moveFocusGraphContextBasedOnValue(context, value, previousX, previousValue, layer, layerIndex, x, y);
                         previousX = x;
                         previousValue = value;
                     }
@@ -2466,7 +2631,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return this.getElementByID("focusGraphCanvas-" + instanceIndex);
     }
 
-    moveContextBasedOnValue(context, value, previousX, previousValue, layerIndex, x, y, layerRange) {
+    moveFocusGraphContextBasedOnValue(context, value, previousX, previousValue, layer, layerIndex, x, y) {
         if (value == 0) {
             // draw line straight down to base if value is 0
             context.lineTo(previousX, y);
@@ -2476,10 +2641,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 context.lineTo(x, y);
             }
 
-            if (value >= layerRange) {
+            if (value >= layer.range) {
                 context.lineTo(x, y - this.config.focusGraph.metricMaxHeight);
             } else {
-                context.lineTo(x, y - value * this.config.focusGraph.metricMaxHeight / layerRange);
+                context.lineTo(x, y - value * this.config.focusGraph.metricMaxHeight / layer.range);
             }
         }
     }
