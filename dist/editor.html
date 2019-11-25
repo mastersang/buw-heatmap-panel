@@ -2,8 +2,7 @@
     Metric list:
 </div>
 
-<table ng-repeat="metric in ctrl.panel.metricList"
-    style="margin-left: 20px; border-collapse: separate; border-spacing: 1em">
+<table ng-repeat="metric in ctrl.panel.metricList" class="collapsed-table" style="margin-left: 20px">
     <tr>
         <td class="centeredCell">
             <button ng-click="ctrl.removeMetric(metric)">Remove</button>
@@ -16,7 +15,7 @@
         </td>
 
         <td class="centeredCell">
-            <table ng-show="metric.isCustom" style="border-collapse: separate; border-spacing: 1em">
+            <table ng-show="metric.isCustom" class="collapsed-table">
                 <tr>
                     <td class="centeredCell">
                         <b>

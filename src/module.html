@@ -3,10 +3,19 @@
 
     <div ng-show="ctrl.showHistogram" style="position: fixed; width: 1700px; height: 700px; left: 90px; top: 150px; z-index: 999; 
         background-color: white; padding:5px; border: 1px solid black; overflow: scroll;">
-        <button ng-click="ctrl.closeHistogram()">
-            Close
-        </button>
+        <table class="collapsed-table">
+            <tr>
+                <td>
+                    <button ng-click="ctrl.closeHistogram()">
+                        Close
+                    </button>
+                </td>
 
+                <td>
+                    <input type="color" ng-model="ctrl.histogramMetric.color">
+                </td>
+            </tr>
+        </table>
 
         <br>
 
@@ -30,8 +39,8 @@
                             <td class="leftPaddingCell">
                                 <select ng-model="ctrl.groupingMode" ng-change="ctrl.selectGroupingMode()"
                                     style="width: 150px">
-                                    <option value="1">Single-attribute</option>
-                                    <option value="2">Multi-attribute</option>
+                                    <option value="1">Single-metric</option>
+                                    <option value="2">Multi-metric</option>
                                 </select>
                             </td>
                         </tr>

@@ -28,3 +28,8 @@
 input {
     padding: 5px
 }
+
+.collapsed-table {
+    border-collapse: separate; 
+    border-spacing: 1em
+}
