@@ -96,9 +96,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.config.focusGraph = {
             maxWidth: 10000,
             maxHeight: 10000,
-            groupedPointWidth: 8,
+            groupedPointWidth: 6,
             ungroupedPointWidth: 35,
-            metricMaxHeight: 30,
+            metricMaxHeight: 20,
             marginBetweenMetrics: 10,
             maxHeight: 10000,
             markerSize: 20,
@@ -576,14 +576,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseSingleMetricGroups() {
         this.overviewModel.metricList.forEach((metric, metricIndex) => {
-            this.initialiseMetricSingleMetricGroups(metric, metricIndex);
+            this.initialiseSingleMetricGroupsByMetric(metric, metricIndex);
             this.initialiseSingleMetricGroupsColor(metric, metricIndex);
         });
 
         this.initialiseSingleMetricInstanceGroupList();
     }
 
-    initialiseMetricSingleMetricGroups(metric, metricIndex) {
+    initialiseSingleMetricGroupsByMetric(metric, metricIndex) {
         metric.thresholdGroupListMap = new Map();
 
         for (var groupingThreshold = 0; groupingThreshold <= this.config.groupingThresholdCount; ++groupingThreshold) {
@@ -593,6 +593,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             groupList.sort((first, second) => {
                 return first.total - second.total;
             });
+
+            for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+                var group = groupList[groupIndex];
+                group.name = this.panel.metricList[metricIndex].name + " group " + (groupIndex + 1);
+            }
 
             metric.thresholdGroupListMap.set(groupingThreshold, groupList);
         }
@@ -605,7 +610,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             });
 
             if (!group) {
-                group = this.initialiseNewSingleMetricGroups(instance, metricIndex);
+                group = this.initialiseNewSingleMetricGroup(instance, metricIndex);
                 groupList.push(group);
             }
 
@@ -620,7 +625,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return this.isBetween(instanceTotal, min, max);
     }
 
-    initialiseNewSingleMetricGroups(instance, metricIndex) {
+    initialiseNewSingleMetricGroup(instance, metricIndex) {
         var group = {};
         group.instanceList = [];
         group.markerX = 0;
@@ -676,7 +681,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var group = this.findExistingMultiMetricGroup(groupList, instance, groupingThreshold);
 
             if (!group) {
-                group = this.initialiseNewMultiMetricGroup(instance);
+                group = this.initialiseNewMultiMetricGroup(instance, groupList);
                 groupList.push(group);
             }
 
@@ -705,10 +710,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return group;
     }
 
-    initialiseNewMultiMetricGroup(instance) {
+    initialiseNewMultiMetricGroup(instance, groupList) {
         var group = {};
         group.metricList = [];
         group.instanceList = [];
+        group.name = "Group " + (groupList.length + 1);
         group.markerX = 0;
 
         instance.metricList.forEach((instanceMetric) => {
@@ -1637,6 +1643,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var focusGroup = {};
         focusGroup.instanceList = [];
         focusGroup.overviewGroup = group;
+        focusGroup.mainMetricIndex = this.overviewModel.selectedMetricIndex;
 
         group.instanceList.forEach((overviewInstance) => {
             var metricWithMostData = _.maxBy(overviewInstance.metricList, (metric) => {
@@ -1652,7 +1659,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseGroupsOverlapMap() {
-        if (this.groupingMode == this.enumList.groupingMode.SINGLE && this.focusModel.groupList.length > 1) {
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
             this.overviewModel.metricList.forEach((metric) => {
                 var groupList = this.getCurrentSingleMetricGroupList(metric);
 
@@ -2678,13 +2685,22 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         // full time range
         var maxMetricLength = this.getMaxMetricLength();
         var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
-        this.drawGroupedFocusGraphInstance(canvas, instance, Array.from(Array(maxMetricLength).keys()), this.getFocusGraphPointWidth());
+        var valueList = Array.from(Array(maxMetricLength).keys());
+        var metricList = instance.metricList;
+        var metricIndexList = Array.from(Array(instance.metricList.length).keys())
+
+        if (this.groupingMode == this.enumList.groupingMode.SINGLE && !group.showAllMetrics) {
+            metricList = [instance.metricList[group.mainMetricIndex]];
+            metricIndexList = [group.mainMetricIndex];
+        }
+
+        this.drawGroupedFocusGraphInstance(canvas, valueList, this.getFocusGraphPointWidth(), metricList, metricIndexList);
 
         // selected time range
         if (group.overviewGroup.timeRangeIndexList) {
             var canvas = this.getElementByID("focusGraphHighlightedTimeRangeCanvas-" + groupIndex + "-" + instanceIndex);
-            var pointWidth = Math.floor(this.focusGraphWidth / group.overviewGroup.timeRangeIndexList.length);
-            this.drawGroupedFocusGraphInstance(canvas, instance, group.overviewGroup.timeRangeIndexList, pointWidth);
+            var pointWidth = Math.floor(this.focusGraphWidth / focusGraphHeightoverviewGroup.timeRangeIndexList.length);
+            this.drawGroupedFocusGraphInstance(canvas, group.overviewGroup.timeRangeIndexList, pointWidth, metricList, metricIndexList);
         }
     }
 
@@ -2692,16 +2708,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return this.getElementByID("focusGraphCanvas-" + groupIndex + "-" + instanceIndex);
     }
 
-    drawGroupedFocusGraphInstance(canvas, instance, valueIndexList, pointWidth) {
+    drawGroupedFocusGraphInstance(canvas, valueIndexList, pointWidth, metricList, metricIndexList) {
         var context = this.getCanvasContext(canvas);
         context.clearRect(0, 0, canvas.width, canvas.height);
-        this.drawFocusGraphInstance(instance, context, valueIndexList, pointWidth);
+        this.drawFocusGraphInstance(context, valueIndexList, pointWidth, metricList, metricIndexList);
     }
 
-    drawFocusGraphInstance(instance, context, valueIndexList, pointWidth) {
-        instance.metricList.forEach((metric, metricIndex) => {
+    drawFocusGraphInstance(context, valueIndexList, pointWidth, metricList, metricIndexList) {
+        metricList.forEach((metric, metricListIndex) => {
             metric.layerList.forEach((layer, layerIndex) => {
                 // start drawing from bottom
+                var metricIndex = metricIndexList[metricListIndex];
+                var panelMetric = this.panel.metricList[metricIndex];
+                context.fillStyle = panelMetric.colorList[layerIndex];
                 var y = (this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics) * metricIndex +
                     this.config.focusGraph.metricMaxHeight;
                 context.beginPath();
@@ -2724,7 +2743,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 context.lineTo(x, y);
                 context.lineTo(this.focusModel.graphBeginX, y);
                 context.closePath();
-                context.fillStyle = this.panel.metricList[metricIndex].colorList[layerIndex];
                 context.fill();
             });
         });
@@ -2735,7 +2753,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var canvas = this.getUngroupedFocusCanvas(instanceIndex);
             var context = this.getCanvasContext(canvas);
             context.clearRect(0, 0, canvas.width, canvas.height);
-            this.drawFocusGraphInstance(instance, context, Array.from(Array(this.getMaxMetricLength()).keys()), this.config.focusGraph.ungroupedPointWidth);
+            var valueIndexList = Array.from(Array(this.getMaxMetricLength()).keys());
+            var metricIndexList = Array.from(Array(instance.metricList.length).keys());
+            this.drawFocusGraphInstance(context, valueIndexList, this.config.focusGraph.ungroupedPointWidth, instance.metricList, metricIndexList);
         });
     }
 
@@ -2878,6 +2898,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.scope.$apply();
             this.drawFocusGraphData();
         });
+    }
+
+    showHideAllMetrics() {
+        this.drawFocusGraph();
     }
 
     selectGroup(instance, evt, groupIndex, instanceIndex) {

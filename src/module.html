@@ -156,7 +156,9 @@
                                     <!-- First instance -->
                                     <div ng-show="$index == 0 && !group.showDetails">
                                         <div>
-                                            Group {{($parent.$index + 1)}}
+                                            <b>
+                                                {{group.overviewGroup.name}}
+                                            </b>
                                         </div>
 
                                         <div>
@@ -165,9 +167,17 @@
                                         </div>
                                     </div>
 
-                                    <span ng-click="ctrl.showNodes(group, $event)" style="color: blue; cursor: pointer">
+                                    <div ng-click="ctrl.showNodes(group, $event)"
+                                        style="color: blue; cursor: pointer; margin-top: 5px;">
                                         {{group.showDetails ? "hide" : "show"}} details
-                                    </span>
+                                    </div>
+
+                                    <div style="margin-top: 5px"
+                                        ng-show="ctrl.isGrouped && ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE">
+                                        <input type="checkbox" ng-model="group.showAllMetrics"
+                                            ng-change="ctrl.showHideAllMetrics()">
+                                        Show all metrics
+                                    </div>
                                 </td>
 
                                 <td id="canvasCell" class="focusCanvasCell">
