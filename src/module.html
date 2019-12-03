@@ -48,6 +48,11 @@
                 </div>
             </td>
 
+            <td class="leftPaddingCell">
+                <button ng-click="ctrl.groupUngroup()"
+                    style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
+            </td>
+
             <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
                 <div class="input-box">
                     <table>
@@ -72,9 +77,24 @@
                 </div>
             </td>
 
-            <td class="leftPaddingCell">
-                <button ng-click="ctrl.groupUngroup()"
-                    style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
+            <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
+                <div class="input-box">
+                    <table>
+                        <tr>
+                            <td>
+                                Groupsize chart
+                            </td>
+
+                            <td class="leftPaddingCell">
+                                <select ng-model="ctrl.groupSizeChart" ng-change="ctrl.selectGroupsizeChart()"
+                                    style="width: 150px">
+                                    <option value="1">Horizontal bar</option>
+                                    <option value="2">Pie</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
             </td>
 
             <td ng-show="ctrl.showMergeSelectedGroups" class="leftPaddingCell">
