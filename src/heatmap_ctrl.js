@@ -278,7 +278,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         // focus graph
         this.focusGraphWidth = this.config.focusGraph.maxWidth;
-        this.focusGraphHeight = this.config.focusGraph.maxHeight;
         this.focusGraphContainer = this.getElementByID("focusGraphContainer");
     }
 
@@ -1425,8 +1424,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    drawFocusGraph() {
-        if (!this.isGrouped) {
+    drawFocusGraph(initialiseData) {
+        if (!this.isGrouped && initialiseData) {
             this.initialiseFocusGraphData();
         }
 
@@ -1435,8 +1434,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.showFocus = true;
 
             this.$timeout(() => {
-                this.focusGraphHeight = this.overviewModel.metricList.length * this.config.focusGraph.metricMaxHeight +
-                    (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
+                this.setFocusGraphCanvasHeight();
                 this.focusGraphWidth = (this.focusModel.focusedIndexList.length - 1) * this.getFocusGraphPointWidth();
                 this.scope.$apply();
 
@@ -1452,6 +1450,28 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             });
         } else {
             this.showFocus = false;
+        }
+    }
+
+    setFocusGraphCanvasHeight() {
+        if (this.isGrouped) {
+            this.focusModel.groupList.forEach((group) => {
+                if (group.showAllMetrics) {
+                    group.focusGraphHeight = this.overviewModel.metricList.length * this.config.focusGraph.metricMaxHeight +
+                        (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
+                } else {
+                    group.focusGraphHeight = this.config.focusGraph.metricMaxHeight;
+                }
+            });
+        } else {
+            this.focusModel.data.forEach((instance) => {
+                if (instance.showAllMetrics) {
+                    instance.focusGraphHeight = this.overviewModel.metricList.length * this.config.focusGraph.metricMaxHeight +
+                        (this.overviewModel.metricList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
+                } else {
+                    instance.focusGraphHeight = this.config.focusGraph.metricMaxHeight;
+                }
+            });
         }
     }
 
@@ -1622,7 +1642,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.initialiseGroupsOverlapMap();
         this.drawOverview();
         this.drawSelectedGroupsMarkers();
-        this.drawFocusGraph();
+        this.drawFocusGraph(false);
     }
 
     mergeSingleMetricGroups() {
@@ -1662,7 +1682,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                         mergedGroup.instanceList.push(instance)
                     });
                 } else {
-                    mergedGroup = JSON.parse(JSON.stringify(group));
+                    mergedGroup = this.getCopyOfGroup(group);
                     groupList.push(mergedGroup);
                 }
             } else {
@@ -1671,7 +1691,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
     }
 
+    getCopyOfGroup(group) {
+        var newGroup = {};
+        newGroup.name = group.name;
+        newGroup.instanceList = group.instanceList;
+        newGroup.total = group.total;
+        newGroup.color = group.color;
+        newGroup.isSelected = group.isSelected;
+        newGroup.markerX = group.markerX;
+        newGroup.y = group.y;
+        return newGroup;
+    }
+
     mergeFocusGroupList() {
+        var oldFocusGroupList = this.focusModel.groupList;
         this.focusModel.groupList = [];
 
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
@@ -1682,6 +1715,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         } else {
             this.mergeFocusGroupListWrapper(this.getCurrentMultiMetricGroupList());
         }
+
+        this.setMainMetricIndexAfterMerging(oldFocusGroupList);
     }
 
     mergeFocusGroupListWrapper(groupList) {
@@ -1709,6 +1744,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
 
         this.focusModel.groupList.push(focusGroup);
+    }
+
+    setMainMetricIndexAfterMerging(oldFocusGroupList) {
+        this.focusModel.groupList.forEach((group) => {
+            var oldGroup = _.find(oldFocusGroupList, (search) => {
+                return search.overviewGroup == group.overviewGroup;
+            });
+
+            if (oldGroup) {
+                group = oldGroup.mainMetricIndex;
+            }
+        });
     }
 
     initialiseGroupsOverlapMap() {
@@ -1961,7 +2008,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (this.isGrouped) {
                 this.handleMouseMoveOnGroupedOverview();
             } else if (!this.isCompressed && !this.focusAreaIsFixed) {
-                this.drawFocus(evt);
+                this.drawFocus();
             }
         } else {
             this.deselectMetricLabel();
@@ -2340,15 +2387,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
     }
 
-    mouseUpOnOverView(evt) {
+    mouseUpOnOverView() {
         if (this.isGrouped) {
             if (this.overviewModel.hoveredMarker) {
                 this.startFocusMarkerInterval(this.overviewModel.hoveredMarker.group);
             } else {
-                this.updateSelectedGroupListAndDrawFocusGraph();
+                this.updateSelectedGroupListAndDrawFocusGraph(false);
             }
         } else if (!this.isCompressed) {
-            this.fixFocusArea(evt);
+            this.fixFocusArea();
         }
     }
 
@@ -2452,24 +2499,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (updatedSelectedGroups) {
                 this.initialiseGroupsOverlapMap();
                 this.drawSelectedGroupsMarkers();
-                this.drawFocusGraph();
+                this.drawFocusGraph(false);
             }
 
             this.overviewModel.isSelectingTimeRange = false;
         });
     }
 
-    fixFocusArea(evt) {
+    fixFocusArea() {
         this.initialiseOverviewCanvasCursor();
 
         if (this.focusAreaIsFixed) {
-            this.drawFocus(evt);
+            this.drawFocus();
         }
 
         this.focusAreaIsFixed = !this.focusAreaIsFixed;
     }
 
-    drawFocus(evt) {
+    drawFocus() {
         this.drawFocusArea();
 
         for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
@@ -2478,7 +2525,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (metric) {
                 // only update focus graph if mouse is pointing on one of metric overview graphs
                 if (this.checkMouseIsInMetric(metric)) {
-                    this.drawFocusGraph();
+                    this.drawFocusGraph(true);
                     break;
                 }
             }
@@ -2771,10 +2818,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         metricList.forEach((metric, metricListIndex) => {
             metric.layerList.forEach((layer, layerIndex) => {
                 // start drawing from bottom
-                var metricIndex = metricIndexList[metricListIndex];
-                var panelMetric = this.panel.metricList[metricIndex];
+                var panelMetric = this.panel.metricList[metricIndexList[metricListIndex]];
                 context.fillStyle = panelMetric.colorList[layerIndex];
-                var y = (this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics) * metricIndex +
+                var y = (this.config.focusGraph.metricMaxHeight + this.config.focusGraph.marginBetweenMetrics) * metricListIndex +
                     this.config.focusGraph.metricMaxHeight;
                 context.beginPath();
                 context.moveTo(0, y);
@@ -2807,8 +2853,16 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             var context = this.getCanvasContext(canvas);
             context.clearRect(0, 0, canvas.width, canvas.height);
             var valueIndexList = Array.from(Array(this.getMaxMetricLength()).keys());
-            var metricIndexList = Array.from(Array(instance.metricList.length).keys());
-            this.drawFocusGraphInstance(context, valueIndexList, this.config.focusGraph.ungroupedPointWidth, instance.metricList, metricIndexList);
+            var metricList = [instance.metricList[this.overviewModel.selectedMetricIndex]];
+            var metricIndexList = [this.overviewModel.selectedMetricIndex]
+
+            if (instance.showAllMetrics) {
+                metricList = instance.metricList;
+                metricIndexList = Array.from(Array(instance.metricList.length).keys());
+            }
+
+            this.drawFocusGraphInstance(context, valueIndexList, this.config.focusGraph.ungroupedPointWidth,
+                metricList, metricIndexList);
         });
     }
 
@@ -2954,7 +3008,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     showHideAllMetrics() {
-        this.drawFocusGraph();
+        this.drawFocusGraph(false);
     }
 
     selectGroup(instance, evt, groupIndex, instanceIndex) {

@@ -172,38 +172,40 @@
                                     <div ng-show="group.showDetails">
                                         {{instance.instance}}
                                     </div>
+                                </td>
 
-                                    <!-- First instance -->
-                                    <div ng-show="$index == 0 && !group.showDetails">
-                                        <div>
-                                            <b>
-                                                {{group.overviewGroup.name}}
-                                            </b>
-                                        </div>
+                                <td ng-show="$index == 0 && !group.showDetails">
+                                    <table>
+                                        <tr>
+                                            <td class="focusInstanceCell">
+                                                <b>
+                                                    {{group.overviewGroup.name}}
+                                                </b>
+                                            </td>
 
-                                        <div>
-                                            ({{group.instanceList.length}}
-                                            node{{group.instanceList.length > 1 ? "s" : ""}})
-                                        </div>
-                                    </div>
+                                            <td class="focusInstanceCell">
+                                                ({{group.instanceList.length}}
+                                                node{{group.instanceList.length > 1 ? "s" : ""}})
+                                            </td>
 
-                                    <div ng-click="ctrl.showNodes(group, $event)"
-                                        style="color: blue; cursor: pointer; margin-top: 5px;">
-                                        {{group.showDetails ? "hide" : "show"}} details
-                                    </div>
+                                            <td class="focusInstanceCell" ng-click="ctrl.showNodes(group, $event)"
+                                                style="color: blue; cursor: pointer; margin-top: 5px;">
+                                                {{group.showDetails ? "hide" : "show"}} details
+                                            </td>
 
-                                    <div style="margin-top: 5px"
-                                        ng-show="ctrl.isGrouped && ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE">
-                                        <input type="checkbox" ng-model="group.showAllMetrics"
-                                            ng-change="ctrl.showHideAllMetrics()">
-                                        Show all metrics
-                                    </div>
+                                            <td class="focusInstanceCell">
+                                                <input type="checkbox" ng-model="group.showAllMetrics"
+                                                    ng-change="ctrl.showHideAllMetrics()">
+                                                Show all metrics
+                                            </td>
+                                        </tr>
+                                    </table>
                                 </td>
 
                                 <td id="canvasCell" class="focusCanvasCell">
                                     <div style="border-bottom: 1px dotted black">
                                         <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}"
-                                            width="{{ctrl.focusGraphWidth}}" height="{{ctrl.focusGraphHeight}}"
+                                            width="{{ctrl.focusGraphWidth}}" height="{{group.focusGraphHeight}}"
                                             ng-click="ctrl.selectGroup(instance, $event, $parent.$index, $index)"></canvas>
                                     </div>
                                 </td>
@@ -228,7 +230,7 @@
                                 <td>
                                     <canvas id="focusGraphHighlightedTimeRangeCanvas-{{$parent.$index}}-{{$index}}"
                                         style="margin-top: 5px" width="{{ctrl.focusGraphWidth}}"
-                                        height="{{ctrl.focusGraphHeight}}"></canvas>
+                                        height="{{group.focusGraphHeight}}"></canvas>
                                 </td>
                             </tr>
                         </table>
@@ -239,7 +241,7 @@
             <!-- Ungrouped -->
             <div ng-if="!ctrl.isGrouped">
                 <div ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
-                    style="border-bottom:1px solid black; padding-top: 5px" ng-click="ctrl.selectNode($index, $event)">
+                    style="border-bottom:1px solid black; padding-top: 5px">
                     <table>
                         <tr id="focusGraphRow">
                             <td
@@ -247,9 +249,16 @@
                                 {{ctrl.focusModel.data[$index].instance}}
                             </td>
 
+                            <td class="focusInstanceCell">
+                                <input type="checkbox" ng-model="ctrl.focusModel.data[$index].showAllMetrics"
+                                    ng-change="ctrl.showHideAllMetrics()">
+                                Show all metrics
+                            </td>
+
                             <td id="canvasCell" class="focusCanvasCell">
                                 <canvas id="focusGraphCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
-                                    height="{{ctrl.focusGraphHeight}}"></canvas>
+                                    ng-click="ctrl.selectNode($index, $event)"
+                                    height="{{ctrl.focusModel.data[$index].focusGraphHeight}}"></canvas>
                             </td>
                         </tr>
                     </table>
