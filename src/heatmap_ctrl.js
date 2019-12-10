@@ -62,15 +62,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             pieRadius: 15,
             marginBetweenMarkerAndGroup: 15,
             marginBetweenMetricAndGroupSize: 30,
-            groupSizeColor: "lightgray"
+            groupSizeColor: "lightgray",
+            selectedInstancesForFocusOffset: 10
         }
     }
 
     initialiseFocusAreaConfig() {
         this.config.focusArea = {
             color: "Aqua",
-            focusAreaSize: 20,
-            xCrossSize: 15
+            focusAreaSize: 20
         }
     }
 
@@ -93,8 +93,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseFocusGraphConfig() {
         this.config.focusGraph = {
-            maxWidth: 10000,
-            maxHeight: 10000,
             groupedPointWidth: 6,
             ungroupedPointWidth: 35,
             metricMaxHeight: 20,
@@ -277,7 +275,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewTimeIndicatorContext = this.getCanvasContext(this.overviewTimeIndicatorCanvas);
 
         // focus graph
-        this.focusGraphWidth = this.config.focusGraph.maxWidth;
         this.focusGraphContainer = this.getElementByID("focusGraphContainer");
     }
 
@@ -1475,6 +1472,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
+    getFocusGraphPointWidth() {
+        return this.isGrouped ? this.config.focusGraph.groupedPointWidth : this.config.focusGraph.ungroupedPointWidth;
+    }
+
     moveMouseOnHistogram(evt) {
         this.histogramModel.mousePosition = this.getMousePos(evt, this.histogramCanvas);
 
@@ -1994,10 +1995,13 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.setOverviewMousePosition(evt);
             this.setSelectedMetricIndex();
 
-            if (this.overviewModel.selectedMetricIndex >= 0) {
+            if (this.overviewModel.selectedMetricIndex > -1) {
                 if (this.isBetween(this.overviewModel.mousePosition.y, 0, this.overviewModel.overviewStartY)) {
                     this.isSelectingMetricLabel = true;
-                    this.setOverviewCursorToPointer();
+
+                    if (this.isGrouped) {
+                        this.setOverviewCursorToPointer();
+                    }
                 } else {
                     this.deselectMetricLabel();
                 }
@@ -2007,7 +2011,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
             if (this.isGrouped) {
                 this.handleMouseMoveOnGroupedOverview();
-            } else if (!this.isCompressed && !this.focusAreaIsFixed) {
+            } else if (this.overviewModel.selectedMetricIndex > -1 && !this.focusAreaIsFixed) {
                 this.drawFocus();
             }
         } else {
@@ -2038,7 +2042,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 // only check if mouse is on a metric graph
                 if (this.checkMouseIsInMetric(metric)) {
                     this.overviewModel.selectedMetricIndex = metricIndex;
-                    this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
+                    // set x position of mouse per overview graph for easier manipulation with mouse positions
+                    this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX + this.overviewModel.metricList[0].startX;
                     break;
                 }
             }
@@ -2089,7 +2094,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
             if (this.isBetween(this.overviewModel.mousePosition.x, marker.startX, marker.endX) &&
                 this.isBetween(this.overviewModel.mousePosition.y, marker.startY, marker.endY)) {
-                this.overviewCursor = "pointer";
+                this.setOverviewCursorToPointer();
                 this.overviewModel.hoveredMarker = marker;
                 return;
             }
@@ -2517,8 +2522,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawFocus() {
-        this.drawFocusArea();
-
         for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
             var metric = this.overviewModel.metricList[i];
 
@@ -2532,60 +2535,17 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    drawFocusArea() {
-        if (this.overviewModel.mousePosition) {
-            this.clearFocusArea();
-            var size = this.getFocusAreaSize();
-            var minimumTopY = Math.max(this.overviewModel.overviewStartY, this.overviewModel.mousePosition.y - size / 2);
-            this.focusModel.focusStartY = Math.min(minimumTopY, this.overviewModel.overviewEndY - size);
-            var size = this.getFocusAreaSize();
-            var offset = this.getFocusAreaOffset();
-
-            if (offset >= 0) {
-                this.focusAreaContext.strokeStyle = this.config.focusArea.color;
-
-                this.overviewModel.metricList.forEach((metric) => {
-                    metric.focusStartX = metric.startX + offset;
-                    this.focusAreaContext.strokeRect(metric.focusStartX, this.focusModel.focusStartY, size, size);
-                });
-            }
-        }
-    }
-
-    getFocusAreaSize() {
-        return Math.min(this.config.focusArea.focusAreaSize * 2, this.overviewModel.overviewEndY - this.overviewModel.overviewStartY);
-    }
-
-    getFocusAreaOffset() {
-        for (var i = 0; i < this.overviewModel.metricList.length; ++i) {
-            var metric = this.overviewModel.metricList[i];
-
-            if (metric) {
-                if (this.checkMouseIsInMetric(metric)) {
-                    this.overviewModel.mousePositionXOffset = this.overviewModel.mousePosition.x - metric.startX;
-                    this.focusModel.sourceMetricIndex = i;
-
-                    return Math.min(Math.max(metric.startX,
-                        this.overviewModel.mousePosition.x - this.config.focusArea.focusAreaSize),
-                        metric.endX - this.getFocusAreaSize()) - metric.startX;
-                }
-            }
-        }
-    }
-
-    getFocusGraphPointWidth() {
-        return this.isGrouped ? this.config.focusGraph.groupedPointWidth : this.config.focusGraph.ungroupedPointWidth;
-    }
-
     initialiseFocusGraphData() {
         if (!this.focusModel.data) {
             this.focusModel.data = [];
         }
 
         this.focusModel.data.length = 0;
+        var topY = Math.max(0, this.overviewModel.mousePosition.y - this.config.overview.selectedInstancesForFocusOffset);
+        var bottomY = Math.min(this.overviewModel.overviewEndY, this.overviewModel.mousePosition.y + this.config.overview.selectedInstancesForFocusOffset);
 
         this.overviewModel.data.forEach((overviewInstance) => {
-            if (this.checkInstanceInFocus(overviewInstance)) {
+            if (this.isBetween(overviewInstance.y, topY, bottomY)) {
                 this.focusModel.focusedIndexList = this.getIndexesOfPointsInFocus(overviewInstance);
                 var focusInstance = this.getFocusInstance(overviewInstance, this.focusModel.focusedIndexList);
                 this.focusModel.data.push(focusInstance);
@@ -2593,22 +2553,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
     }
 
-    checkInstanceInFocus(instance) {
-        return instance.y <= this.focusModel.focusStartY + this.getFocusAreaSize() &&
-            instance.y + this.overviewModel.instanceHeight >= this.focusModel.focusStartY
-    }
-
     getIndexesOfPointsInFocus(overviewInstance) {
         var indexes = [];
 
-        for (var i = 0; i < overviewInstance.metricList.length; ++i) {
-            var metric = overviewInstance.metricList[i];
+        for (var metricIndex = 0; metricIndex < overviewInstance.metricList.length; ++metricIndex) {
+            var instanceMetric = overviewInstance.metricList[metricIndex];
 
-            if (metric.data.length > 0) {
-                var overviewMetric = this.overviewModel.metricList[i];
+            if (instanceMetric.data.length > 0) {
+                var overviewMetric = this.overviewModel.metricList[metricIndex];
+                var leftX = Math.max(overviewMetric.startX, this.overviewModel.mousePositionXOffset - this.config.overview.selectedInstancesForFocusOffset);
+                var rightX = Math.min(overviewMetric.endX,
+                    this.overviewModel.mousePositionXOffset + this.config.overview.selectedInstancesForFocusOffset);
 
-                metric.data.forEach((point, index) => {
-                    if (this.isBetween(point.x, overviewMetric.focusStartX, overviewMetric.focusStartX + this.getFocusAreaSize())) {
+                instanceMetric.data.forEach((point, index) => {
+                    if (this.isBetween(point.x, leftX, rightX)) {
                         indexes.push(index);
                     }
                 });
@@ -2713,22 +2671,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawFocusGraphData() {
-        if (this.isGrouped) {
-            this.$timeout(() => {
-                if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-                    this.focusGraphMarkerWidth = (this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers) *
-                        this.overviewModel.metricList.length;
-                } else {
-                    this.focusGraphMarkerWidth = this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers;
-                }
+        if (this.overviewModel.selectedMetricIndex > -1) {
+            if (this.isGrouped) {
+                this.$timeout(() => {
+                    if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+                        this.focusGraphMarkerWidth = (this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers) *
+                            this.overviewModel.metricList.length;
+                    } else {
+                        this.focusGraphMarkerWidth = this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers;
+                    }
 
-                this.focusGraphMarkerHeight = this.config.focusGraph.markerSize;
-                this.scope.$apply();
-                this.drawGroupFocusMarkers();
-                this.drawGroupedFocusGraph();
-            });
-        } else {
-            this.drawUngroupedFocusGraph();
+                    this.focusGraphMarkerHeight = this.config.focusGraph.markerSize;
+                    this.scope.$apply();
+                    this.drawGroupFocusMarkers();
+                    this.drawGroupedFocusGraph();
+                });
+            } else {
+                this.drawUngroupedFocusGraph();
+            }
         }
     }
 
@@ -2854,7 +2814,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             context.clearRect(0, 0, canvas.width, canvas.height);
             var valueIndexList = Array.from(Array(this.getMaxMetricLength()).keys());
             var metricList = [instance.metricList[this.overviewModel.selectedMetricIndex]];
-            var metricIndexList = [this.overviewModel.selectedMetricIndex]
+            var metricIndexList = [this.overviewModel.selectedMetricIndex];
 
             if (instance.showAllMetrics) {
                 metricList = instance.metricList;

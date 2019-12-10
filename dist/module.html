@@ -140,7 +140,7 @@
         <canvas id="focusAreaCanvas" style="position: absolute; cursor: {{ctrl.overviewCursor}}"
             width="{{ctrl.overviewCanvasWidth}}" height="{{ctrl.overviewCanvasHeight}}"
             ng-mousemove="ctrl.moveMouseOnOverview($event)" ng-mousedown="ctrl.mouseDownOnOverview($event)"
-            ng-mouseUp="ctrl.mouseUpOnOverView($event)"></canvas>
+            ng-mouseUp="ctrl.mouseUpOnOverView()"></canvas>
     </div>
 
     <!-- Focus graph -->
