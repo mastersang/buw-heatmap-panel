@@ -1,4 +1,4 @@
-<div style="width: 100%; height: 100%; overflow: auto">
+<div style="width: 100%; height: 100%; overflow-y: auto">
     <img style="position: absolute; bottom: 0px" ng-show="ctrl.isLoading" src="/public/img/loading.gif">
 
     <div ng-show="ctrl.showHistogram" style="position: fixed; width: 1700px; height: 700px; left: 90px; top: 150px; z-index: 999; 
@@ -161,45 +161,55 @@
                         style="border-bottom: 1px {{group.showDetails && $index < group.instanceList.length - 1 ? 'dashed' : 'solid'}} black; padding-bottom: 5px">
                         <table id="focusGraphRow">
                             <tr>
-                                <td class="focusInstanceCell centeredCell">
+                                <td class="focusInstanceCell centeredCell" style="width: 150px;">
                                     <canvas id="focusGroupMarkerCanvas-{{$parent.$index}}-{{$index}}"
                                         width="{{ctrl.focusGraphMarkerWidth}}"
                                         height="{{ctrl.focusGraphMarkerHeight}}"></canvas>
                                 </td>
 
-                                <td ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: instance.isSelected}"
-                                    style="line-height: 100%; text-align: center">
-                                    <div ng-show="group.showDetails">
-                                        {{instance.instance}}
-                                    </div>
-                                </td>
-
-                                <td ng-show="$index == 0 && !group.showDetails">
+                                <td ng-if="group.showDetails"
+                                    ng-class="{focusInstanceCell: true, centeredCell: true,highlighted: instance.isSelected}"
+                                    style="line-height: 100%; text-align: left;">
                                     <table>
                                         <tr>
-                                            <td class="focusInstanceCell">
+                                            <td class="instanceNameCell">
+                                                {{instance.instance}}
+                                            </td>
+
+                                            <td class="focusInstanceCell showHideDetail"
+                                                ng-click="ctrl.showNodes(group, $event)">
+                                                Hide details
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+
+                                <td ng-if="$index == 0 && !group.showDetails">
+                                    <table>
+                                        <tr>
+                                            <td class="focusInstanceCell" style="width: 200px">
                                                 <b>
                                                     {{group.overviewGroup.name}}
                                                 </b>
                                             </td>
 
-                                            <td class="focusInstanceCell">
+                                            <td class="focusInstanceCell" style="width: 100px">
                                                 ({{group.instanceList.length}}
                                                 node{{group.instanceList.length > 1 ? "s" : ""}})
                                             </td>
 
-                                            <td class="focusInstanceCell" ng-click="ctrl.showNodes(group, $event)"
-                                                style="color: blue; cursor: pointer; margin-top: 5px;">
-                                                {{group.showDetails ? "hide" : "show"}} details
-                                            </td>
-
-                                            <td class="focusInstanceCell">
-                                                <input type="checkbox" ng-model="group.showAllMetrics"
-                                                    ng-change="ctrl.showHideAllMetrics()">
-                                                Show all metrics
+                                            <td class="focusInstanceCell showHideDetail"
+                                                ng-click="ctrl.showNodes(group, $event)">
+                                                Show details
                                             </td>
                                         </tr>
                                     </table>
+                                </td>
+
+                                <td class="focusInstanceCell" style="width: 150px">
+                                    <input type="checkbox" ng-model="group.showAllMetrics"
+                                        ng-change="ctrl.showHideAllMetrics()">
+                                    Show all metrics
                                 </td>
 
                                 <td id="canvasCell" class="focusCanvasCell">
@@ -213,7 +223,7 @@
 
                             <tr
                                 ng-show="group.overviewGroup.timeRangeIndexList && group.overviewGroup.timeRangeIndexList.length > 0">
-                                <td colspan="2" style="text-align: right; padding-right: 10px">
+                                <td colspan="3" style="text-align: right; padding-right: 10px">
                                     from
 
                                     <b>
@@ -239,17 +249,17 @@
             </div>
 
             <!-- Ungrouped -->
-            <div ng-if="!ctrl.isGrouped">
+            <div ng-if="!ctrl.isGrouped" style="overflow: auto">
                 <div ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
                     style="border-bottom:1px solid black; padding-top: 5px">
                     <table>
                         <tr id="focusGraphRow">
-                            <td
-                                ng-class="{focusInstanceCell : true, centeredCell: true, highlighted: ctrl.focusModel.data[$index].isSelected || group.showDetails}">
+                            <td style=" text-align: left;"
+                                ng-class="{focusInstanceCell : true, centeredCell: true, instanceNameCell: true, highlighted: ctrl.focusModel.data[$index].isSelected || group.showDetails}">
                                 {{ctrl.focusModel.data[$index].instance}}
                             </td>
 
-                            <td class="focusInstanceCell">
+                            <td class="focusInstanceCell" style="width: 150px;">
                                 <input type="checkbox" ng-model="ctrl.focusModel.data[$index].showAllMetrics"
                                     ng-change="ctrl.showHideAllMetrics()">
                                 Show all metrics

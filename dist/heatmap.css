@@ -12,6 +12,10 @@
     text-align: center
 }
 
+.instanceNameCell {
+    width: 300px
+}
+
 .leftPaddingCell {
     padding-left: 10px;
 }
@@ -32,4 +36,10 @@ input {
 .collapsed-table {
     border-collapse: separate; 
     border-spacing: 1em
+}
+
+.showHideDetail {
+    color: blue; 
+    cursor: pointer;
+     width: 100px
 }
