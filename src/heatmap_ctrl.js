@@ -63,6 +63,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             marginBetweenMarkerAndGroup: 15,
             marginBetweenMetricAndGroupSize: 30,
             groupSizeColor: "lightgray",
+            overlapColor: "black",
             selectedInstancesForFocusOffset: 10
         }
     }
@@ -628,6 +629,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseNewSingleMetricGroup(instance, metricIndex) {
         var group = {};
+        group.metricIndex = metricIndex;
         group.instanceList = [];
         group.markerX = 0;
         group.total = instance.metricList[metricIndex].total;
@@ -1174,14 +1176,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawSingleMetricBarGroupSize(group, startX) {
         this.drawBarGroupSizeWrapper(group, startX, group.instanceList.length, this.config.overview.groupSizeColor);
-
-        if (group.isSelected && group.overlapMap) {
-            var startOverlapX = startX;
-
-            group.overlapMap.forEach((count, overlappingGroup) => {
-                startOverlapX = this.drawBarGroupSizeWrapper(group, startOverlapX, count, overlappingGroup.color);
-            });
-        }
+        this.drawBarGroupSizeWrapper(group, startX, group.overlapCount, this.config.overview.overlapColor);
     }
 
     drawBarGroupSizeWrapper(group, startX, length, color) {
@@ -1201,12 +1196,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     drawSingleMetricPieGroupSize(group, startX) {
         var startAngle = -0.5 * Math.PI;
         this.drawPieGroupSizeWrapper(group, startX, startAngle, group.instanceList.length, this.config.overview.groupSizeColor);
-
-        if (group.isSelected && group.overlapMap) {
-            group.overlapMap.forEach((count, overlappingGroup) => {
-                startAngle = this.drawPieGroupSizeWrapper(group, startX, startAngle, count, overlappingGroup.color);
-            });
-        }
+        this.drawPieGroupSizeWrapper(group, startX, startAngle, group.overlapCount, this.config.overview.overlapColor);
     }
 
     drawPieGroupSizeWrapper(group, startX, startAngle, size, color) {
@@ -1338,16 +1328,35 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (removeExisting) {
                 group.isSelected = false;
 
+                // deselect group from focus
                 _.remove(this.focusModel.groupList, (search) => {
                     return search.overviewGroup == group;
                 });
             }
         } else {
+            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+                this.removeExistingFocusGroupInSameMetric(group);
+            }
+
             group.isSelected = true;
             this.addGroupToFocus(group);
         }
 
         this.setShowMergeGroupsButton();
+    }
+
+    removeExistingFocusGroupInSameMetric(group) {
+        var newGroupList = [];
+
+        this.focusModel.groupList.forEach((existingGroup) => {
+            if (existingGroup.overviewGroup.metricIndex == group.metricIndex) {
+                existingGroup.overviewGroup.isSelected = false;
+            } else {
+                newGroupList.push(existingGroup);
+            }
+        });
+
+        this.focusModel.groupList = newGroupList;
     }
 
     setShowMergeGroupsButton() {
@@ -1434,10 +1443,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 var pointCount = this.focusModel.focusedIndexList.length - 1;
                 var pointWidth = this.isGrouped ? this.config.focusGraph.groupedPointWidth : this.config.focusGraph.ungroupedPointWidth;
                 this.focusGraphWidth = Math.min(this.config.focusGraph.maxWidth, pointCount * pointWidth);
-                this.focusModel.pointWidth = Math.max(1, Math.floor(this.focusGraphWidth / pointCount));
-
                 this.scope.$apply();
-
+                this.focusModel.pointWidth = Math.max(1, Math.floor(this.focusGraphWidth / pointCount));
                 var focusGraphRow = this.getElementByID("focusGraphRow");
 
                 if (focusGraphRow) {
@@ -1563,12 +1570,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     changeGroupingSelection() {
-        this.drawOverview();
-        this.clearFocusArea();
-        this.clearTimeIndicator();
-        this.deselectAllGroups();
-        this.showFocus = false;
-        this.showMergeSelectedGroups = false;
+        if (!this.isLoading) {
+            this.drawOverview();
+            this.clearFocusArea();
+            this.clearTimeIndicator();
+            this.deselectAllGroups();
+            this.showFocus = false;
+            this.showMergeSelectedGroups = false;
+        }
     }
 
     deselectAllGroups() {
@@ -1620,10 +1629,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     groupUngroup() {
         this.isGrouped = !this.isGrouped;
-
-        if (!this.isLoading) {
-            this.changeGroupingSelection();
-        }
+        this.changeGroupingSelection();
     }
 
     mergeSelectedGroups() {
@@ -1639,7 +1645,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
 
         this.mergeFocusGroupList();
-        this.initialiseGroupsOverlapMap();
+        this.initialiseGroupsOverlapCount();
         this.drawOverview();
         this.drawSelectedGroupsMarkers();
         this.drawFocusGraph(false);
@@ -1694,6 +1700,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     getCopyOfGroup(group) {
         var newGroup = {};
         newGroup.name = group.name;
+        newGroup.metricIndex = group.metricIndex;
         newGroup.instanceList = group.instanceList;
         newGroup.total = group.total;
         newGroup.color = group.color;
@@ -1758,57 +1765,44 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
     }
 
-    initialiseGroupsOverlapMap() {
-        if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-            this.overviewModel.metricList.forEach((metric) => {
-                var groupList = this.getCurrentSingleMetricGroupList(metric);
+    initialiseGroupsOverlapCount() {
+        this.overviewModel.selectedMetricIndexList = [];
 
-                groupList.forEach((group) => {
-                    group.overlapMap = new Map();
-                    this.checkAndAddOverlappingGroupsFromOtherMetrics(group, metric);
-                })
-            });
+        this.focusModel.groupList.forEach((group) => {
+            this.overviewModel.selectedMetricIndexList.push(group.overviewGroup.metricIndex);
+        });
 
-            this.drawOverview();
-        }
-    }
+        this.overviewModel.metricList.forEach((metric, metricIndex) => {
+            var groupList = this.getCurrentSingleMetricGroupList(metric);
 
-    checkAndAddOverlappingGroupsFromOtherMetrics(group, metric) {
-        for (var metricIndex = 0; metricIndex < this.overviewModel.metricList.length; ++metricIndex) {
-            var overlappingMetric = this.overviewModel.metricList[metricIndex];
+            groupList.forEach((group) => {
+                group.overlapCount = 0;
 
-            if (metric != overlappingMetric) {
-                var overlappingGroupList = this.getCurrentSingleMetricGroupList(overlappingMetric);
-
-                overlappingGroupList.forEach((overlappingGroup) => {
-                    this.checkAndAddOverlappingGroup(group, overlappingGroup);
-                });
-
-                if (group.overlapMap.size > 0) {
-                    break;
+                if (this.focusModel.groupList.length > 0 && !this.overviewModel.selectedMetricIndexList.includes(metricIndex)) {
+                    this.checkOverlappingGroups(group);
                 }
-            }
-        }
+            });
+        });
     }
 
-    checkAndAddOverlappingGroup(group, overlappingGroup) {
-        if (group != overlappingGroup && overlappingGroup.isSelected) {
-            var overlappingCount = 0;
+    checkOverlappingGroups(group) {
+        group.instanceList.forEach((instance) => {
+            var check = 0;
 
-            group.instanceList.forEach((instance) => {
-                var overlappingInstance = _.find(overlappingGroup.instanceList, (search) => {
+            this.focusModel.groupList.forEach((group) => {
+                var overlappingInstance = _.find(group.overviewGroup.instanceList, (search) => {
                     return search.instance == instance.instance;
                 });
 
                 if (overlappingInstance) {
-                    ++overlappingCount;
+                    ++check;
                 }
             });
 
-            if (overlappingCount > 0) {
-                group.overlapMap.set(overlappingGroup, overlappingCount);
+            if (check == this.overviewModel.selectedMetricIndexList.length) {
+                ++group.overlapCount;
             }
-        }
+        });
     }
 
     mergeMultipleMetricGroups() {
@@ -2566,7 +2560,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.scope.$apply();
 
             if (updatedSelectedGroups) {
-                this.initialiseGroupsOverlapMap();
+                if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+                    this.initialiseGroupsOverlapCount();
+                    this.drawOverview();
+                }
+
                 this.drawSelectedGroupsMarkers();
                 this.drawFocusGraph(false);
             }
