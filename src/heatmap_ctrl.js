@@ -1805,6 +1805,31 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
     }
 
+    initialiseOverlapList() {
+        this.focusModel.overlappingList = [];
+        var firstGroup = this.focusModel.groupList[0];
+
+        firstGroup.instanceList.forEach((instance) => {
+            var check = 0;
+
+            for (var groupIndex = 1; groupIndex < this.focusModel.groupList.length; ++groupIndex) {
+                var overlappingGroup = this.focusModel.groupList[groupIndex];
+
+                var overlappingInstance = _.find(overlappingGroup.instanceList, (search) => {
+                    return search.instance == instance.instance;
+                });
+
+                if (overlappingInstance) {
+                    ++check;
+                }
+            }
+
+            if (check == this.focusModel.groupList.length - 1) {
+                this.focusModel.overlappingList.push(instance);
+            }
+        });
+    }
+
     mergeMultipleMetricGroups() {
         var groupList = this.getCurrentMultiMetricGroupList();
 
@@ -2562,6 +2587,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (updatedSelectedGroups) {
                 if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
                     this.initialiseGroupsOverlapCount();
+
+                    if (this.focusModel.groupList.length > 1) {
+                        this.initialiseOverlapList();
+                    }
+
                     this.drawOverview();
                 }
 
@@ -3067,6 +3097,46 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 break;
             }
         }
+    }
+
+    showHideOverlapDetails() {
+        this.showOverlapDetails = !this.showOverlapDetails;
+
+        if (this.showOverlapDetails) {
+            this.drawOverlapDetails();
+        }
+    }
+
+    drawOverlapDetails() {
+        this.$timeout(() => {
+            this.overlapGraphHeight = this.focusModel.groupList.length * this.config.focusGraph.metricMaxHeight +
+                (this.focusModel.groupList.length - 1) * this.config.focusGraph.marginBetweenMetrics;
+            this.scope.$apply();
+
+            var metricIndexList = [];
+
+            this.focusModel.groupList.forEach((group) => {
+                metricIndexList.push(group.overviewGroup.metricIndex);
+            });
+
+            this.focusModel.overlappingList.forEach((instance, instanceIndex) => {
+                this.drawOverlapInstance(instance, instanceIndex, metricIndexList);
+            });
+        });
+    }
+
+    drawOverlapInstance(instance, instanceIndex, metricIndexList) {
+        var canvas = this.getElementByID("focusGraphOverlapCanvas-" + instanceIndex)
+        var context = this.getCanvasContext(canvas);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        var valueIndexList = Array.from(Array(this.getMaxMetricLength()).keys());
+        var metricList = [];
+
+        metricIndexList.forEach((metricIndex) => {
+            metricList.push(instance.metricList[metricIndex]);
+        });
+
+        this.drawFocusGraphInstance(context, valueIndexList, this.focusModel.pointWidth, metricList, metricIndexList);
     }
 
     selectNode(index, evt) {

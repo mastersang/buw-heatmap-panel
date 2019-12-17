@@ -154,6 +154,7 @@
         <div id="focusGraphContainer" style="height: 400px; overflow: auto">
             <!-- Grouped -->
             <div ng-if="ctrl.isGrouped">
+                <!-- Selected groups -->
                 <div ng-repeat="group in ctrl.focusModel.groupList">
                     <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                         ng-mouseover="ctrl.moveMouseOnFocusGroup(group, instance)"
@@ -246,6 +247,30 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- Overlap -->
+                <div style="margin-top: 20px;"
+                    ng-if="ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE && ctrl.focusModel.groupList.length > 1">
+                    <b> {{ctrl.focusModel.overlappingList.length}} overlaps</b>
+
+                    <span class="showHideDetail" ng-click="ctrl.showHideOverlapDetails()">
+                        {{ctrl.showOverlapDetails ? 'Hide' : 'Show'}} details
+                    </span>
+                </div>
+
+                <table ng-show="ctrl.showOverlapDetails">
+                    <tr ng-repeat="instance in ctrl.focusModel.overlappingList track by $index"
+                        style="border-bottom:1px solid black">
+                        <td style="text-align: left;" class="focusInstanceCell centeredCell instanceNameCell">
+                            {{instance.instance}}
+                        </td>
+
+                        <td id="canvasCell" class="focusCanvasCell">
+                            <canvas id="focusGraphOverlapCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
+                                height="{{ctrl.overlapGraphHeight}}"></canvas>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
             <!-- Ungrouped -->
