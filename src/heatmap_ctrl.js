@@ -1445,15 +1445,18 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.focusGraphWidth = Math.min(this.config.focusGraph.maxWidth, pointCount * pointWidth);
                 this.scope.$apply();
                 this.focusModel.pointWidth = Math.max(1, Math.floor(this.focusGraphWidth / pointCount));
-                var focusGraphRow = this.getElementByID("focusGraphRow");
 
-                if (focusGraphRow) {
-                    this.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
-                    this.setFocusFromAndToDate();
-                    this.positionFocusFromAndToDate();
-                    this.drawFocusGraphData();
-                    this.autoSrollFocusGraph();
-                }
+                this.$timeout(() => {
+                    var focusGraphRow = this.getElementByID("focusGraphRow");
+
+                    if (focusGraphRow) {
+                        this.setFocusFromAndToDate();
+                        this.positionFocusFromAndToDate();
+                        this.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
+                        this.drawFocusGraphData();
+                        this.autoSrollFocusGraph();
+                    }
+                });
             });
         } else {
             this.showFocus = false;
@@ -2038,7 +2041,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.handleMouseMoveOnGroupedOverview();
             } else if (this.overviewModel.selectedMetricIndex > -1) {
                 if (this.isDrawingFocusArea) {
-                    this.drawfocusArea();
+                    this.drawFocusArea();
                 } else if (!this.focusAreaIsFixed) {
                     this.clearFocusArea();
                     this.drawFocus();
@@ -2422,7 +2425,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
     }
 
-    drawfocusArea() {
+    drawFocusArea() {
         this.initialiseFocusAreaPoints();
 
         if (this.focusAreaModel.startX != this.focusAreaModel.endX &&
@@ -2430,7 +2433,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.focusInArea = true;
             this.focusAreaIsFixed = false;
             this.drawFocusAreaSquare();
-            this.drawFocus();
         } else {
             this.focusInArea = false;
         }
@@ -2480,6 +2482,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             }
         } else {
             if (this.isDrawingFocusArea) {
+                this.drawFocus();
                 this.isDrawingFocusArea = false;
             }
 
@@ -2775,8 +2778,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                     this.focusGraphMarkerHeight = this.config.focusGraph.markerSize;
                     this.scope.$apply();
-                    this.drawGroupFocusMarkers();
-                    this.drawGroupedFocusGraph();
+
+                    this.$timeout(() => {
+                        this.drawGroupFocusMarkers();
+                        this.drawGroupedFocusGraph();
+                    });
                 });
             } else {
                 this.drawUngroupedFocusGraph();

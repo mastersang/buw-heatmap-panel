@@ -1630,23 +1630,33 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
             if (this.isGrouped && this.focusModel.groupList.length > 0 || !this.isGrouped && this.focusModel.data.length > 0) {
               this.showFocus = true;
-              this.setFocusGraphCanvasHeight();
-              var pointCount = this.focusModel.focusedIndexList.length - 1;
-              var pointWidth = this.isGrouped ? this.config.focusGraph.groupedPointWidth : this.config.focusGraph.ungroupedPointWidth;
-              this.focusGraphWidth = Math.min(this.config.focusGraph.maxWidth, pointCount * pointWidth);
-              this.focusModel.pointWidth = Math.max(1, Math.floor(this.focusGraphWidth / pointCount));
-              var focusGraphRow = this.getElementByID("focusGraphRow");
+              this.$timeout(function () {
+                _this37.setFocusGraphCanvasHeight();
 
-              if (focusGraphRow) {
-                this.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
-                this.setFocusFromAndToDate();
-                this.positionFocusFromAndToDate();
-                this.$timeout(function () {
-                  _this37.drawFocusGraphData();
+                var pointCount = _this37.focusModel.focusedIndexList.length - 1;
+                var pointWidth = _this37.isGrouped ? _this37.config.focusGraph.groupedPointWidth : _this37.config.focusGraph.ungroupedPointWidth;
+                _this37.focusGraphWidth = Math.min(_this37.config.focusGraph.maxWidth, pointCount * pointWidth);
 
-                  _this37.autoSrollFocusGraph();
+                _this37.scope.$apply();
+
+                _this37.focusModel.pointWidth = Math.max(1, Math.floor(_this37.focusGraphWidth / pointCount));
+
+                _this37.$timeout(function () {
+                  var focusGraphRow = _this37.getElementByID("focusGraphRow");
+
+                  if (focusGraphRow) {
+                    _this37.setFocusFromAndToDate();
+
+                    _this37.positionFocusFromAndToDate();
+
+                    _this37.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
+
+                    _this37.drawFocusGraphData();
+
+                    _this37.autoSrollFocusGraph();
+                  }
                 });
-              }
+              });
             } else {
               this.showFocus = false;
             }
@@ -2289,7 +2299,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                 this.handleMouseMoveOnGroupedOverview();
               } else if (this.overviewModel.selectedMetricIndex > -1) {
                 if (this.isDrawingFocusArea) {
-                  this.drawfocusArea();
+                  this.drawFocusArea();
                 } else if (!this.focusAreaIsFixed) {
                   this.clearFocusArea();
                   this.drawFocus();
@@ -2702,15 +2712,14 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
           }
         }, {
-          key: "drawfocusArea",
-          value: function drawfocusArea() {
+          key: "drawFocusArea",
+          value: function drawFocusArea() {
             this.initialiseFocusAreaPoints();
 
             if (this.focusAreaModel.startX != this.focusAreaModel.endX && this.focusAreaModel.startY != this.focusAreaModel.endY) {
               this.focusInArea = true;
               this.focusAreaIsFixed = false;
               this.drawFocusAreaSquare();
-              this.drawFocus();
             } else {
               this.focusInArea = false;
             }
@@ -2764,6 +2773,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               }
             } else {
               if (this.isDrawingFocusArea) {
+                this.drawFocus();
                 this.isDrawingFocusArea = false;
               }
 
@@ -3090,9 +3100,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
                   _this63.scope.$apply();
 
-                  _this63.drawGroupFocusMarkers();
+                  _this63.$timeout(function () {
+                    _this63.drawGroupFocusMarkers();
 
-                  _this63.drawGroupedFocusGraph();
+                    _this63.drawGroupedFocusGraph();
+                  });
                 });
               } else {
                 this.drawUngroupedFocusGraph();
