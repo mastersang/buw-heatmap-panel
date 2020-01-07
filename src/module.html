@@ -130,7 +130,7 @@
     </table>
 
     <div style="margin-top: 20px">
-        <span ng-repeat="tab in ctrl.tabList track by $index"
+        <span ng-repeat="tab in ctrl.tabList track by $index" ng-click="ctrl.selectTab(tab)"
             ng-class="{tab: true, selectedTab: tab == ctrl.currentTab}">
             {{tab.fromDate}} - {{tab.toDate}}
 
@@ -139,7 +139,7 @@
     </div>
 
     <!-- Overview graph & focus area -->
-    <div style="position: relative; margin-top: 10px">
+    <div style="position: relative; margin-top: 20px">
         <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
             height="{{ctrl.overviewCanvasHeight}}"></canvas>
 
