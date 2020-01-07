@@ -43,3 +43,15 @@ input {
     cursor: pointer;
      width: 100px
 }
+
+.tab {
+    cursor: pointer; 
+    padding: 10px; 
+    border: 1px solid gray; 
+    background-color: lightgray;
+}
+
+.selectedTab {
+    border-bottom: 0;
+    background-color: white;
+}

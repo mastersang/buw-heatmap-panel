@@ -129,6 +129,15 @@
         </tr>
     </table>
 
+    <div style="margin-top: 20px">
+        <span ng-repeat="tab in ctrl.tabList track by $index"
+            ng-class="{tab: true, selectedTab: tab == ctrl.currentTab}">
+            {{tab.fromDate}} - {{tab.toDate}}
+
+            <button ng-show="$index > 0" ng-click="ctrl.removeTab(tab)" style="margin-left: 5px;">X</button>
+        </span>
+    </div>
+
     <!-- Overview graph & focus area -->
     <div style="position: relative; margin-top: 10px">
         <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"
@@ -158,7 +167,7 @@
             <!-- Grouped -->
             <div ng-show="ctrl.isGrouped">
                 <!-- Selected groups -->
-                <div ng-repeat="group in ctrl.focusModel.groupList" style="margin-bottom: 10px;">
+                <div ng-repeat="group in ctrl.currentTab.focusModel.groupList" style="margin-bottom: 10px;">
                     <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                         ng-mouseover="ctrl.moveMouseOnFocusGroup(group, instance)"
                         ng-mouseleave="ctrl.stopOverviewMarkerInterval()"
@@ -172,7 +181,7 @@
                                 </td>
 
                                 <td ng-show="group.showDetails"
-                                    ng-class="{focusInstanceCell: true, centeredCell: true,highlighted: instance.isSelected}"
+                                    ng-class="{focusInstanceCell: true, centeredCell: true, highlighted: instance.isSelected}"
                                     style="line-height: 100%; text-align: left;">
                                     <table>
                                         <tr>
@@ -255,8 +264,8 @@
 
                 <!-- Overlap -->
                 <div style="margin-top: 20px"
-                    ng-show="ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE && ctrl.focusModel.groupList.length > 1">
-                    <b> {{ctrl.focusModel.overlappingList.length}} overlapping nodes</b>
+                    ng-show="ctrl.groupingMode == ctrl.enumList.groupingMode.SINGLE && ctrl.currentTab.focusModel.groupList.length > 1">
+                    <b> {{ctrl.currentTab.focusModel.overlappingList.length}} overlapping nodes</b>
 
                     <span class="showHideDetail" ng-click="ctrl.showHideOverlapDetails()">
                         {{ctrl.showOverlapDetails ? 'Hide' : 'Show'}} details
@@ -266,7 +275,7 @@
 
                     <div ng-show="ctrl.showOverlapDetails" style="height: 200px; overflow-y: scroll">
                         <table>
-                            <tr ng-repeat="instance in ctrl.focusModel.overlappingList track by $index"
+                            <tr ng-repeat="instance in ctrl.currentTab.focusModel.overlappingList track by $index"
                                 style="border-bottom: 1px dashed black;">
                                 <td style="text-align: left; margin-bottom: 10px"
                                     class="focusInstanceCell centeredCell instanceNameCell">
@@ -285,17 +294,17 @@
 
             <!-- Ungrouped -->
             <div ng-hide="ctrl.isGrouped" style="overflow: auto">
-                <div ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
-                    style="margin-bottom: 10px; {{ctrl.focusModel.data[$index].showAllMetrics ? 'border-top: 1px dashed black; border-bottom: 1px dashed black' : ''}}">
+                <div ng-repeat="x in [].constructor(ctrl.currentTab.focusModel.data.length) track by $index"
+                    style="margin-bottom: 10px; {{ctrl.currentTab.focusModel.data[$index].showAllMetrics ? 'border-top: 1px dashed black; border-bottom: 1px dashed black' : ''}}">
                     <table>
                         <tr id="focusGraphRow">
                             <td style=" text-align: left;"
-                                ng-class="{focusInstanceCell : true, centeredCell: true, instanceNameCell: true, highlighted: ctrl.focusModel.data[$index].isSelected || group.showDetails}">
-                                {{ctrl.focusModel.data[$index].instance}}
+                                ng-class="{focusInstanceCell : true, centeredCell: true, instanceNameCell: true, highlighted: ctrl.currentTab.focusModel.data[$index].isSelected || group.showDetails}">
+                                {{ctrl.currentTab.focusModel.data[$index].instance}}
                             </td>
 
                             <td class="focusInstanceCell" style="width: 150px;">
-                                <input type="checkbox" ng-model="ctrl.focusModel.data[$index].showAllMetrics"
+                                <input type="checkbox" ng-model="ctrl.currentTab.focusModel.data[$index].showAllMetrics"
                                     ng-change="ctrl.showHideAllMetrics()">
                                 Show all metrics
                             </td>
@@ -303,7 +312,7 @@
                             <td id="canvasCell" class="focusCanvasCell">
                                 <canvas id="focusGraphCanvas-{{$index}}" width="{{ctrl.focusGraphWidth}}"
                                     ng-click="ctrl.selectNode($index, $event)"
-                                    height="{{ctrl.focusModel.data[$index].focusGraphHeight}}"></canvas>
+                                    height="{{ctrl.currentTab.focusModel.data[$index].focusGraphHeight}}"></canvas>
                             </td>
                         </tr>
                     </table>
