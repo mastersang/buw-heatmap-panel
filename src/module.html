@@ -149,20 +149,20 @@
 
         <!-- Focused time labels -->
         <div ng-hide="ctrl.isGrouped"
-            style="font-family: Arial; font-style: italic;  font-size: {{ctrl.timeFontSize}}px">
+            style="font-family: Arial; font-style: italic;  font-size: {{ctrl.timeFontSize}}px; margin-bottom: 10px">
             <span style="margin-left: {{ctrl.fromDateLeftMargin}}px">{{ctrl.focusedFromDate}}</span>
             <span style="margin-left: {{ctrl.toDateLeftMargin}}px">{{ctrl.focusedToDate}}</span>
         </div>
 
         <div id="focusGraphContainer" style="height: 400px; overflow: auto">
             <!-- Grouped -->
-            <div ng-if="ctrl.isGrouped">
+            <div ng-show="ctrl.isGrouped">
                 <!-- Selected groups -->
                 <div ng-repeat="group in ctrl.focusModel.groupList" style="margin-bottom: 10px;">
                     <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
                         ng-mouseover="ctrl.moveMouseOnFocusGroup(group, instance)"
                         ng-mouseleave="ctrl.stopOverviewMarkerInterval()"
-                        style="{{group.showDetails ? 'border-bottom: 1px dashed black' : ''}}">
+                        style="{{group.showDetails && group.showAllMetrics ? 'border-bottom: 1px dashed black' : ''}}">
                         <table id="focusGraphRow">
                             <tr>
                                 <td class="focusInstanceCell centeredCell" style="width: 150px;">
@@ -216,7 +216,7 @@
                                     Show all metrics
                                 </td>
 
-                                <td id="canvasCell" class="focusCanvasCell">
+                                <td class="focusCanvasCell">
                                     <canvas id="focusGraphCanvas-{{$parent.$index}}-{{$index}}"
                                         width="{{ctrl.focusGraphWidth}}" height="{{group.focusGraphHeight}}"
                                         ng-click="ctrl.selectGroup(instance, $event, $parent.$index, $index)"></canvas>
@@ -225,7 +225,11 @@
 
                             <tr
                                 ng-show="group.overviewGroup.timeRangeIndexList && group.overviewGroup.timeRangeIndexList.length > 0">
-                                <td colspan="3" style="text-align: right; padding-right: 10px">
+                                <td colspan="3">
+
+                                </td>
+
+                                <td style="text-align: left; padding-right: 10px">
                                     from
 
                                     <b>
@@ -239,11 +243,11 @@
                                     </b>
                                 </td>
 
-                                <td>
+                                <!-- <td>
                                     <canvas id="focusGraphHighlightedTimeRangeCanvas-{{$parent.$index}}-{{$index}}"
                                         style="margin-top: 5px" width="{{ctrl.focusGraphWidth}}"
                                         height="{{group.focusGraphHeight}}"></canvas>
-                                </td>
+                                </td> -->
                             </tr>
                         </table>
                     </div>
@@ -280,9 +284,9 @@
             </div>
 
             <!-- Ungrouped -->
-            <div ng-if="!ctrl.isGrouped" style="overflow: auto">
+            <div ng-hide="ctrl.isGrouped" style="overflow: auto">
                 <div ng-repeat="x in [].constructor(ctrl.focusModel.data.length) track by $index"
-                    style="margin-bottom: 10px">
+                    style="margin-bottom: 10px; {{ctrl.focusModel.data[$index].showAllMetrics ? 'border-top: 1px dashed black; border-bottom: 1px dashed black' : ''}}">
                     <table>
                         <tr id="focusGraphRow">
                             <td style=" text-align: left;"
