@@ -165,7 +165,7 @@
 
         <div id="focusGraphContainer" style="height: 400px; overflow: auto">
             <!-- Grouped -->
-            <div ng-show="ctrl.isGrouped">
+            <div ng-show="ctrl.isGrouped" ng-click="ctrl.drawFocusGraph(false)">
                 <!-- Selected groups -->
                 <div ng-repeat="group in ctrl.currentTab.focusModel.groupList" style="margin-bottom: 10px;">
                     <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
@@ -251,12 +251,6 @@
                                         {{group.overviewGroup.endTimeRangeDate}}
                                     </b>
                                 </td>
-
-                                <!-- <td>
-                                    <canvas id="focusGraphHighlightedTimeRangeCanvas-{{$parent.$index}}-{{$index}}"
-                                        style="margin-top: 5px" width="{{ctrl.focusGraphWidth}}"
-                                        height="{{group.focusGraphHeight}}"></canvas>
-                                </td> -->
                             </tr>
                         </table>
                     </div>

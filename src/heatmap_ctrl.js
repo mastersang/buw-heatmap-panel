@@ -97,7 +97,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             metricMaxHeight: 20,
             metricMinHeight: 5,
             marginBetweenMetrics: 10,
-            maxWidth: 1200,
+            maxWidth: 800,
             markerSize: 20,
             marginBetweenMarkers: 20
         }
@@ -1448,7 +1448,14 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.$timeout(() => {
                 this.setFocusGraphCanvasHeight();
                 var pointCount = this.currentTab.focusModel.focusedIndexList.length - 1;
-                var pointWidth = this.isGrouped ? this.config.focusGraph.groupedPointWidth : this.config.focusGraph.ungroupedPointWidth;
+                var pointWidth;
+
+                if (this.isGrouped) {
+                    pointWidth = Math.max(1, Math.floor(this.config.focusGraph.maxWidth / pointCount));
+                } else {
+                    pointWidth = this.config.focusGraph.ungroupedPointWidth;
+                }
+
                 this.focusGraphWidth = Math.min(this.config.focusGraph.maxWidth, pointCount * pointWidth);
                 this.scope.$apply();
                 this.currentTab.focusModel.pointWidth = Math.max(1, Math.floor(this.focusGraphWidth / pointCount));
@@ -1786,34 +1793,41 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.currentTab.overviewModel.selectedMetricIndexList.push(group.overviewGroup.metricIndex);
         });
 
-        this.currentTab.overviewModel.metricList.forEach((metric, metricIndex) => {
+        this.currentTab.overviewModel.metricList.forEach((metric) => {
             var groupList = this.getCurrentSingleMetricGroupList(metric);
 
             groupList.forEach((group) => {
                 group.overlapCount = 0;
 
-                if (this.currentTab.focusModel.groupList.length > 0 && !this.currentTab.overviewModel.selectedMetricIndexList.includes(metricIndex)) {
-                    this.checkOverlappingGroups(group);
+                if (this.currentTab.focusModel.groupList.length > 0) {
+                    this.checkOverlappingGroupsAndSetOverlapCount(group);
                 }
             });
         });
     }
 
-    checkOverlappingGroups(group) {
+    checkOverlappingGroupsAndSetOverlapCount(group) {
         group.instanceList.forEach((instance) => {
             var check = 0;
 
-            this.currentTab.focusModel.groupList.forEach((group) => {
-                var overlappingInstance = _.find(group.overviewGroup.instanceList, (search) => {
-                    return search.instance == instance.instance;
-                });
+            this.currentTab.focusModel.groupList.forEach((overlappingGroup) => {
+                if (overlappingGroup.overviewGroup.metricIndex != group.metricIndex) {
+                    var overlappingInstance = _.find(overlappingGroup.overviewGroup.instanceList, (search) => {
+                        return search.instance == instance.instance;
+                    });
 
-                if (overlappingInstance) {
-                    ++check;
+                    if (overlappingInstance) {
+                        ++check;
+                    }
                 }
             });
 
-            if (check == this.currentTab.overviewModel.selectedMetricIndexList.length) {
+            if (this.currentTab.overviewModel.selectedMetricIndexList.length > 1 &&
+                this.currentTab.overviewModel.selectedMetricIndexList.includes(group.metricIndex)) {
+                if (check == this.currentTab.overviewModel.selectedMetricIndexList.length - 1) {
+                    ++group.overlapCount;
+                }
+            } else if (check == this.currentTab.overviewModel.selectedMetricIndexList.length) {
                 ++group.overlapCount;
             }
         });
@@ -2543,6 +2557,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             } else {
                 this.updateSelectedGroupListAndDrawFocusGraph(false);
             }
+
+            this.currentTab.overviewModel.isSelectingTimeRange = false;
         } else {
             if (this.isDrawingFocusArea) {
                 this.drawFocusGraph(false);
@@ -2695,8 +2711,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (updatedSelectedGroups) {
                 this.drawFocusAfterUpdatingSelectedGroups();
             }
-
-            this.currentTab.overviewModel.isSelectingTimeRange = false;
         });
     }
 
@@ -2781,6 +2795,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 });
             });
         }
+    }
+
+    drawOverlapInstance(instance, instanceIndex, metricIndexList) {
+        var canvas = this.getElementByID("focusGraphOverlapCanvas-" + instanceIndex)
+        var context = this.getCanvasContext(canvas);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        var valueIndexList = Array.from(Array(this.getMaxMetricLength()).keys());
+        var metricList = [];
+
+        metricIndexList.forEach((metricIndex) => {
+            metricList.push(instance.metricList[metricIndex]);
+        });
+
+        this.drawFocusGraphInstance(context, valueIndexList, this.currentTab.focusModel.pointWidth, metricList, metricIndexList);
     }
 
     drawFocus() {
@@ -3283,20 +3311,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     showHideOverlapDetails() {
         this.showOverlapDetails = !this.showOverlapDetails;
         this.drawOverlapDetails();
-    }
-
-    drawOverlapInstance(instance, instanceIndex, metricIndexList) {
-        var canvas = this.getElementByID("focusGraphOverlapCanvas-" + instanceIndex)
-        var context = this.getCanvasContext(canvas);
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        var valueIndexList = Array.from(Array(this.getMaxMetricLength()).keys());
-        var metricList = [];
-
-        metricIndexList.forEach((metricIndex) => {
-            metricList.push(instance.metricList[metricIndex]);
-        });
-
-        this.drawFocusGraphInstance(context, valueIndexList, this.currentTab.focusModel.pointWidth, metricList, metricIndexList);
     }
 
     selectNode(index, evt) {
