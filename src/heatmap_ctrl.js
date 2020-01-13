@@ -180,6 +180,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseNewTab() {
         var tab = {};
         tab.overviewModel = {};
+        tab.overviewModel.timeRangePositionMap = new Map();
         tab.histogramModel = {};
         tab.overviewModel.data = [];
         tab.overviewModel.metricList = [];
@@ -1182,7 +1183,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawSingleMetricBarGroupSize(group, startX) {
         this.drawBarGroupSizeWrapper(group, startX, group.instanceList.length, this.config.overview.groupSizeColor);
-        this.drawBarGroupSizeWrapper(group, startX, group.overlapCount, this.config.overview.overlapColor);
+
+        // don't draw overlap if group isn't selected and is in a selected metric
+        if (this.currentTab.overviewModel.selectedMetricIndexList &&
+            (!this.currentTab.overviewModel.selectedMetricIndexList.includes(group.metricIndex) || group.isSelected)) {
+            this.drawBarGroupSizeWrapper(group, startX, group.overlapCount, this.config.overview.overlapColor);
+        }
     }
 
     drawBarGroupSizeWrapper(group, startX, length, color) {
@@ -1603,6 +1609,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     deselectAllGroups() {
         this.currentTab.focusModel.groupList = [];
+        this.currentTab.overviewModel.timeRangePositionMap = new Map();
         this.deselectSingleMetricGroups();
         this.deselectMultiMetricGroups();
     }
@@ -1620,6 +1627,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 groupList.forEach((group) => {
                     group.isSelected = false;
                     group.timeRangeIndexList = null;
+                    group.overlapCount = 0;
                 });
             }
         });
@@ -1872,7 +1880,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     clearTimeIndicator() {
         this.overviewTimeIndicatorContext.clearRect(0, 0, this.overviewTimeIndicatorCanvas.width, this.overviewTimeIndicatorCanvas.height);
-        this.currentTab.overviewModel.timeRangePositionMap = new Map();
     }
 
     mouseDownOnOverview(evt) {
@@ -1889,7 +1896,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.currentTab.overviewModel.focusAreaStartPoint = {};
             this.focusInArea = false;
             var firstMetric = this.currentTab.overviewModel.metricList[0];
-            this.currentTab.overviewModel.focusAreaStartPoint.x = Math.max(firstMetric.startX, this.currentTab.overviewModel.mousePositionXOffset - firstMetric.startX);
+            this.currentTab.overviewModel.focusAreaStartPoint.x =
+                Math.max(firstMetric.startX, this.currentTab.overviewModel.mousePositionXOffset - firstMetric.startX);
             this.currentTab.overviewModel.focusAreaStartPoint.y = this.currentTab.overviewModel.mousePosition.y;
             this.isDrawingFocusArea = true;
         }
@@ -2023,16 +2031,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     selectTab(tab) {
         this.currentTab = tab;
-        this.drawOverview();
-        this.drawSelectedGroupsMarkers();
 
-        if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
-            this.drawTimeIndicators();
-        } else {
-            this.drawSelectedTimeRanges();
-        }
+        this.$timeout(() => {
+            this.drawOverview();
+            this.drawSelectedGroupsMarkers();
+            this.drawFocusGraph();
 
-        this.drawFocusGraph();
+            this.$timeout(() => {
+                if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
+                    this.drawTimeIndicators();
+                } else {
+                    this.drawSelectedTimeRanges();
+                }
+            });
+        });
     }
 
     removeTab(tab) {
@@ -2558,6 +2570,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.updateSelectedGroupListAndDrawFocusGraph(false);
             }
 
+            this.currentTab.overviewModel.isHoveringOnTimeRange = false;
             this.currentTab.overviewModel.isSelectingTimeRange = false;
         } else {
             if (this.isDrawingFocusArea) {
@@ -2691,42 +2704,45 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     updateSelectedGroupListAndDrawFocusGraph() {
-        this.$timeout(() => {
-            var updatedSelectedGroups = false;
+        var updatedSelectedGroups = false;
 
-            if (this.currentTab.overviewModel.isSelectingTimeRange) {
-                var removeExisting = this.currentTab.overviewModel.timeRangeStartOffset == this.currentTab.overviewModel.mousePositionXOffset;
-                this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.timeRangeGroup, removeExisting);
-                this.removeExistingGroupAndAddTimeRangeGroupToFocus();
-                updatedSelectedGroups = true;
-            } else if (this.currentTab.overviewModel.hoveredGroup) {
-                this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.hoveredGroup, true);
-                updatedSelectedGroups = true;
-            } else {
-                this.stopInterval();
+        if (this.currentTab.overviewModel.isSelectingTimeRange) {
+            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+                this.removeExistingGroupsInMetricByGroup(this.currentTab.overviewModel.timeRangeGroup);
             }
 
-            this.scope.$apply();
-
-            if (updatedSelectedGroups) {
-                this.drawFocusAfterUpdatingSelectedGroups();
+            var removeExisting = this.currentTab.overviewModel.timeRangeStartOffset == this.currentTab.overviewModel.mousePositionXOffset;
+            this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.timeRangeGroup, removeExisting);
+            updatedSelectedGroups = true;
+        } else if (this.currentTab.overviewModel.hoveredGroup) {
+            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+                this.removeExistingGroupsInMetricByGroup(this.currentTab.overviewModel.hoveredGroup);
             }
-        });
+
+            this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.hoveredGroup, true);
+            updatedSelectedGroups = true;
+        } else {
+            this.stopInterval();
+        }
+
+        if (updatedSelectedGroups) {
+            this.drawFocusAfterUpdatingSelectedGroups();
+        }
     }
 
-    removeExistingGroupAndAddTimeRangeGroupToFocus() {
+    removeExistingGroupsInMetricByGroup(group) {
         _.remove(this.currentTab.focusModel.groupList, (search) => {
-            search.overviewGroup.metricIndex == this.currentTab.overviewModel.timeRangeGroup.metricIndex &&
-                search.overviewGroup != this.currentTab.overviewModel.timeRangeGroup;
+            search.overviewGroup.metricIndex == group.metricIndex &&
+                search.overviewGroup != group;
         });
 
-        var groupList = this.getCurrentSingleMetricGroupList(this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.timeRangeGroup.metricIndex]);
+        var groupList = this.getCurrentSingleMetricGroupList(this.currentTab.overviewModel.metricList[group.metricIndex]);
 
         if (groupList) {
-            groupList.forEach((group) => {
-                if (group != this.currentTab.overviewModel.timeRangeGroup && group != this.currentTab.overviewModel.hoveredTimeRangeGroup) {
-                    group.isSelected = false;
-                    group.timeRangeIndexList = null;
+            groupList.forEach((existingGroup) => {
+                if (existingGroup != group) {
+                    existingGroup.isSelected = false;
+                    existingGroup.timeRangeIndexList = null;
                 }
             });
         }
@@ -3199,6 +3215,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 return instance;
             }
         }
+    }
+
+    leaveMouseFromOverview() {
+        this.currentTab.overviewModel.isSelectingTimeRange = false;
     }
 
     moveMouseOnFocusGroup(group, instance) {
