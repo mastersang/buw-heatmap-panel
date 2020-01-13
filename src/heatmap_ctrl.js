@@ -2382,7 +2382,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseSelectedGroupTimeRangeIndexList() {
         this.currentTab.overviewModel.timeRangeGroup.timeRangeIndexList = [];
-        var metricIndex = this.currentTab.overviewModel.timeRangeGroup.metricIndex;
+        var metricIndex = this.currentTab.overviewModel.selectedMetricIndex;
         var instanceMetric = this.currentTab.overviewModel.timeRangeGroup.instanceList[0].metricList[metricIndex];
         var overviewMetric = this.currentTab.overviewModel.metricList[metricIndex];
         var startX = overviewMetric.startX + this.currentTab.overviewModel.timeRangeStartOffset - this.currentTab.overviewModel.metricList[0].startX;
@@ -2408,7 +2408,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     setTimeRangeStartAndEndDate() {
         var timeRangeGroup = this.currentTab.overviewModel.timeRangeGroup;
-        var metric = timeRangeGroup.instanceList[0].metricList[timeRangeGroup.metricIndex];
+        var metric = timeRangeGroup.instanceList[0].metricList[this.currentTab.overviewModel.selectedMetricIndex];
         var timeRangeIndexList = timeRangeGroup.timeRangeIndexList;
         var startPoint = metric.data[timeRangeIndexList[0]];
         timeRangeGroup.startTimeRangeDate = this.convertDateToString(startPoint.date * 1000);
@@ -3105,17 +3105,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 // start drawing from bottom
                 context.moveTo(0, y);
                 var x = 0;
-                var previousX = 0;
-                var previousValue = 0;
+                var totalValue = 0;
 
                 valueIndexList.forEach((valueIndex, positionIndex) => {
                     var value = layer.valueList[valueIndex];
 
                     if (value != null) {
                         x = pointWidth * positionIndex;
-                        this.moveFocusGraphContextBasedOnValue(context, value, previousValue, layer, x, y, previousX);
-                        previousX = x;
-                        previousValue = value;
+                        this.moveFocusGraphContextBasedOnValue(context, value, layer, layerIndex, x, y);
+                        totalValue += value;
                     }
                 });
 
@@ -3125,7 +3123,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 // move back to the starting point
                 context.lineTo(0, y);
                 context.closePath();
-                context.fill();
+
+                if (totalValue > 0 || layerIndex == 0) {
+                    context.fill();
+                }
             });
         });
     }
@@ -3152,10 +3153,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return this.getElementByID("focusGraphCanvas-" + instanceIndex);
     }
 
-    moveFocusGraphContextBasedOnValue(context, value, previousValue, layer, x, y, previousX) {
+    moveFocusGraphContextBasedOnValue(context, value, layer, layerIndex, x, y) {
         if (value == 0) {
             // draw line straight down to base if value is 0
-            context.lineTo(x, y);
+            var baseY = layerIndex == 0 ? y - this.config.focusGraph.metricMinHeight : y;
+            context.lineTo(x, baseY);
         } else {
             var height;
 
