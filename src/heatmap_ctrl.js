@@ -836,14 +836,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.currentTab.overviewModel.overviewWidth = this.config.overview.marginBetweenMarkerAndGroup * this.currentTab.overviewModel.metricList.length +
             marginBetweenMetrics * (this.currentTab.overviewModel.metricList.length - 1);
+        this.currentTab.overviewModel.pointWidth = this.config.overview.pointWidth;
+
+        if (this.isGrouped) {
+            this.setGroupedOverviewPointWidth();
+        }
 
         // total width of overiew graph
         if (this.isCompressed) {
             this.currentTab.overviewModel.metricList.forEach((metric) => {
-                this.currentTab.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * this.config.overview.pointWidth;
+                this.currentTab.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * this.currentTab.overviewModel.pointWidth;
             });
         } else {
-            this.currentTab.overviewModel.overviewWidth += this.getMaxMetricLength() * this.currentTab.overviewModel.metricList.length * this.config.overview.pointWidth;
+            this.currentTab.overviewModel.overviewWidth +=
+                this.getMaxMetricLength() * this.currentTab.overviewModel.metricList.length * this.currentTab.overviewModel.pointWidth;
         }
 
         this.overviewCanvasWidth = this.currentTab.overviewModel.overviewWidth;
@@ -854,6 +860,32 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.setGroupedOverviewCanvasWidth();
         } else {
             this.overviewCanvasWidth += this.currentTab.overviewModel.toDateWidth / 2;
+        }
+    }
+
+    setOverviewContextTimeFont() {
+        this.overviewContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
+    }
+
+    setGroupedOverviewPointWidth() {
+        if (this.currentTab != this.tabList[0]) {
+            var maxOriginalLength = this.getMaxMetricLengthByTab(this.tabList[0]);
+            var originalLength = this.getMaxMetricLength();
+            var currentLength = originalLength;
+            var nextScaledLength = currentLength;
+            var scale = 1;
+
+            while (currentLength < maxOriginalLength && nextScaledLength < maxOriginalLength) {
+                currentLength = nextScaledLength;
+                ++scale;
+                nextScaledLength = originalLength * scale;
+            }
+
+            if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
+                this.currentTab.overviewModel.pointWidth *= (scale - 1);
+            } else {
+                this.currentTab.overviewModel.pointWidth *= scale;
+            }
         }
     }
 
@@ -876,9 +908,13 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     getMaxMetricLength() {
+        return this.getMaxMetricLengthByTab(this.currentTab);
+    }
+
+    getMaxMetricLengthByTab(tab) {
         var length = 0;
 
-        this.currentTab.overviewModel.metricList.forEach((metric) => {
+        tab.overviewModel.metricList.forEach((metric) => {
             var instanceWithMostPoints = _.maxBy(metric.data, (point) => {
                 return point.values.length;
             });
@@ -1015,9 +1051,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.setOverviewMetricStartX(metric, metricIndex, marginBetweenMetrics);
 
             if (this.isCompressed) {
-                metric.endX = metric.startX + metric.compressedTimeIndexList.length * this.config.overview.pointWidth;
+                metric.endX = metric.startX + metric.compressedTimeIndexList.length * this.currentTab.overviewModel.pointWidth;
             } else {
-                metric.endX = metric.startX + this.getMaxMetricLength() * this.config.overview.pointWidth;
+                metric.endX = metric.startX + this.getMaxMetricLength() * this.currentTab.overviewModel.pointWidth;
             }
         });
     }
@@ -1103,21 +1139,21 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 var point = instanceMetric.data[pointIndex];
 
                 if (point) {
-                    this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, this.config.overview.pointWidth, pointHeight);
+                    this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, pointHeight);
                 }
             });
         } else {
             instanceMetric.data.forEach((point, pointIndex) => {
-                this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, this.config.overview.pointWidth, pointHeight);
+                this.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointHeight);
             });
         }
     }
 
-    drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointWidth, pointHeight) {
-        point.x = overviewMetric.startX + pointIndex * pointWidth;
+    drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointHeight) {
+        point.x = overviewMetric.startX + pointIndex * this.currentTab.overviewModel.pointWidth;
         point.color = this.getColorFromMap(point.value, this.currentTab.overviewModel.metricList[metricIndex].colorMap);
         this.overviewContext.fillStyle = point.color;
-        this.overviewContext.fillRect(point.x, instance.y, pointWidth, pointHeight);
+        this.overviewContext.fillRect(point.x, instance.y, this.currentTab.overviewModel.pointWidth, pointHeight);
     }
 
     getColorFromMap(value, map) {
@@ -1299,10 +1335,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var metric = this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.metricList.length - 1];
         this.overviewContext.fillStyle = "black";
         this.overviewContext.fillText(this.currentTab.overviewModel.toDate, metric.endX - this.currentTab.overviewModel.toDateWidth / 2, y);
-    }
-
-    setOverviewContextTimeFont() {
-        this.overviewContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
     }
 
     convertDateToString(date) {
@@ -2242,7 +2274,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     checkDataPointIsSelected(point) {
-        return this.isBetween(this.currentTab.overviewModel.mousePosition.x, point.x, point.x + this.config.overview.pointWidth);
+        return this.isBetween(this.currentTab.overviewModel.mousePosition.x, point.x, point.x + this.currentTab.overviewModel.pointWidth);
     }
 
     drawTimeIndicators() {
@@ -2491,7 +2523,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint) {
         var startY = this.drawHorizontalTimeLine(overviewMetric, group);
         var startX = startPoint.x;
-        var endX = endPoint.x + this.config.overview.pointWidth;
+        var endX = endPoint.x + this.currentTab.overviewModel.pointWidth;
         var width = endX - startX;
         var height = group.y - startY;
         this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);

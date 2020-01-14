@@ -961,14 +961,20 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
             this.setOverviewContextTimeFont();
             var marginBetweenMetrics = this.getMarginBetweenMetrics();
-            this.currentTab.overviewModel.overviewWidth = this.config.overview.marginBetweenMarkerAndGroup * this.currentTab.overviewModel.metricList.length + marginBetweenMetrics * (this.currentTab.overviewModel.metricList.length - 1); // total width of overiew graph
+            this.currentTab.overviewModel.overviewWidth = this.config.overview.marginBetweenMarkerAndGroup * this.currentTab.overviewModel.metricList.length + marginBetweenMetrics * (this.currentTab.overviewModel.metricList.length - 1);
+            this.currentTab.overviewModel.pointWidth = this.config.overview.pointWidth;
+
+            if (this.isGrouped) {
+              this.setGroupedOverviewPointWidth();
+            } // total width of overiew graph
+
 
             if (this.isCompressed) {
               this.currentTab.overviewModel.metricList.forEach(function (metric) {
-                _this21.currentTab.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * _this21.config.overview.pointWidth;
+                _this21.currentTab.overviewModel.overviewWidth += metric.compressedTimeIndexList.length * _this21.currentTab.overviewModel.pointWidth;
               });
             } else {
-              this.currentTab.overviewModel.overviewWidth += this.getMaxMetricLength() * this.currentTab.overviewModel.metricList.length * this.config.overview.pointWidth;
+              this.currentTab.overviewModel.overviewWidth += this.getMaxMetricLength() * this.currentTab.overviewModel.metricList.length * this.currentTab.overviewModel.pointWidth;
             }
 
             this.overviewCanvasWidth = this.currentTab.overviewModel.overviewWidth;
@@ -979,6 +985,34 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               this.setGroupedOverviewCanvasWidth();
             } else {
               this.overviewCanvasWidth += this.currentTab.overviewModel.toDateWidth / 2;
+            }
+          }
+        }, {
+          key: "setOverviewContextTimeFont",
+          value: function setOverviewContextTimeFont() {
+            this.overviewContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
+          }
+        }, {
+          key: "setGroupedOverviewPointWidth",
+          value: function setGroupedOverviewPointWidth() {
+            if (this.currentTab != this.tabList[0]) {
+              var maxOriginalLength = this.getMaxMetricLengthByTab(this.tabList[0]);
+              var originalLength = this.getMaxMetricLength();
+              var currentLength = originalLength;
+              var nextScaledLength = currentLength;
+              var scale = 1;
+
+              while (currentLength < maxOriginalLength && nextScaledLength < maxOriginalLength) {
+                currentLength = nextScaledLength;
+                ++scale;
+                nextScaledLength = originalLength * scale;
+              }
+
+              if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
+                this.currentTab.overviewModel.pointWidth *= scale - 1;
+              } else {
+                this.currentTab.overviewModel.pointWidth *= scale;
+              }
             }
           }
         }, {
@@ -1003,8 +1037,13 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
         }, {
           key: "getMaxMetricLength",
           value: function getMaxMetricLength() {
+            return this.getMaxMetricLengthByTab(this.currentTab);
+          }
+        }, {
+          key: "getMaxMetricLengthByTab",
+          value: function getMaxMetricLengthByTab(tab) {
             var length = 0;
-            this.currentTab.overviewModel.metricList.forEach(function (metric) {
+            tab.overviewModel.metricList.forEach(function (metric) {
               var instanceWithMostPoints = _.maxBy(metric.data, function (point) {
                 return point.values.length;
               });
@@ -1149,9 +1188,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               _this24.setOverviewMetricStartX(metric, metricIndex, marginBetweenMetrics);
 
               if (_this24.isCompressed) {
-                metric.endX = metric.startX + metric.compressedTimeIndexList.length * _this24.config.overview.pointWidth;
+                metric.endX = metric.startX + metric.compressedTimeIndexList.length * _this24.currentTab.overviewModel.pointWidth;
               } else {
-                metric.endX = metric.startX + _this24.getMaxMetricLength() * _this24.config.overview.pointWidth;
+                metric.endX = metric.startX + _this24.getMaxMetricLength() * _this24.currentTab.overviewModel.pointWidth;
               }
             });
           }
@@ -1249,22 +1288,22 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                 var point = instanceMetric.data[pointIndex];
 
                 if (point) {
-                  _this27.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, _this27.config.overview.pointWidth, pointHeight);
+                  _this27.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, rangeIndex, pointHeight);
                 }
               });
             } else {
               instanceMetric.data.forEach(function (point, pointIndex) {
-                _this27.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, _this27.config.overview.pointWidth, pointHeight);
+                _this27.drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointHeight);
               });
             }
           }
         }, {
           key: "drawOverviewInstancePoint",
-          value: function drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointWidth, pointHeight) {
-            point.x = overviewMetric.startX + pointIndex * pointWidth;
+          value: function drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointHeight) {
+            point.x = overviewMetric.startX + pointIndex * this.currentTab.overviewModel.pointWidth;
             point.color = this.getColorFromMap(point.value, this.currentTab.overviewModel.metricList[metricIndex].colorMap);
             this.overviewContext.fillStyle = point.color;
-            this.overviewContext.fillRect(point.x, instance.y, pointWidth, pointHeight);
+            this.overviewContext.fillRect(point.x, instance.y, this.currentTab.overviewModel.pointWidth, pointHeight);
           }
         }, {
           key: "getColorFromMap",
@@ -1468,11 +1507,6 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var metric = this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.metricList.length - 1];
             this.overviewContext.fillStyle = "black";
             this.overviewContext.fillText(this.currentTab.overviewModel.toDate, metric.endX - this.currentTab.overviewModel.toDateWidth / 2, y);
-          }
-        }, {
-          key: "setOverviewContextTimeFont",
-          value: function setOverviewContextTimeFont() {
-            this.overviewContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
           }
         }, {
           key: "convertDateToString",
@@ -2506,7 +2540,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
         }, {
           key: "checkDataPointIsSelected",
           value: function checkDataPointIsSelected(point) {
-            return this.isBetween(this.currentTab.overviewModel.mousePosition.x, point.x, point.x + this.config.overview.pointWidth);
+            return this.isBetween(this.currentTab.overviewModel.mousePosition.x, point.x, point.x + this.currentTab.overviewModel.pointWidth);
           }
         }, {
           key: "drawTimeIndicators",
@@ -2774,7 +2808,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function drawSelectedTimeRangeLines(overviewMetric, group, startPoint, endPoint) {
             var startY = this.drawHorizontalTimeLine(overviewMetric, group);
             var startX = startPoint.x;
-            var endX = endPoint.x + this.config.overview.pointWidth;
+            var endX = endPoint.x + this.currentTab.overviewModel.pointWidth;
             var width = endX - startX;
             var height = group.y - startY;
             this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);

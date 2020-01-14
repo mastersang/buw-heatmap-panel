@@ -131,10 +131,11 @@
             </tr>
         </table>
 
+        <!-- Tabs -->
         <div style="margin-top: 20px">
             <span ng-repeat="tab in ctrl.tabList track by $index" ng-click="ctrl.selectTab(tab)"
                 ng-class="{tab: true, selectedTab: tab == ctrl.currentTab}">
-                {{tab.fromDate}} - {{tab.toDate}}
+                {{tab.fromDate + " - " + tab.toDate}}
 
                 <button ng-show="$index > 0" ng-click="ctrl.removeTab(tab)" style="margin-left: 5px;">X</button>
             </span>
@@ -167,7 +168,7 @@
 
             <div id="focusGraphContainer" style="height: 400px; overflow: auto">
                 <!-- Grouped -->
-                <div ng-show="ctrl.isGrouped" ng-click="ctrl.drawFocusGraph(false)">
+                <div ng-show="ctrl.isGrouped" ng-mousemove="ctrl.drawFocusGraph(false)">
                     <!-- Selected groups -->
                     <div ng-repeat="group in ctrl.currentTab.focusModel.groupList" style="margin-bottom: 10px;">
                         <div ng-repeat="instance in group.instanceList" ng-show="$index == 0 || group.showDetails"
