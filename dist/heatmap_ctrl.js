@@ -88,7 +88,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function initialiseGeneralConfig() {
             this.config = {
               apiAddress: "http://localhost:3000/api/datasources/proxy/1/api/v1/query_range?query=",
-              dateFormat: "DD.MM.YY HH:mm",
+              dateFormat: "DD.MM HH:mm",
               colorCount: 4,
               maxLuminanceChange: 0.8,
               marginBetweenOverviewAndFocus: 20,
@@ -104,8 +104,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             this.config.overview = {
               topAndBottomPadding: 20,
               metricFontSize: 12,
-              timeFontSize: 10,
-              marginBetweenLabelsAndOverview: 10,
+              timeFontSize: 9,
+              marginBetweenLabelsAndOverview: 15,
               pointWidth: 1,
               ungroupedPointHeight: 1,
               groupedPointHeight: 5,
@@ -114,7 +114,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               marginBetweenGroups: 10,
               groupSizeBarWidth: 1,
               pieRadius: 8,
-              marginBetweenMarkerAndGroup: 15,
+              marginBetweenMarkerAndGroup: 25,
               marginBetweenMetricAndGroupSize: 30,
               groupSizeColor: "lightgray",
               overlapColor: "black",
@@ -393,6 +393,12 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           key: "getDateInSeconds",
           value: function getDateInSeconds(date) {
             return Math.round(date.getTime() / 1000);
+          } // convert date in timestamp (seconds) to string
+
+        }, {
+          key: "convertDateToString",
+          value: function convertDateToString(date) {
+            return moment(date * 1000).format(this.config.dateFormat);
           }
         }, {
           key: "getDataFromAPI",
@@ -975,6 +981,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             }
 
             this.overviewCanvasWidth = this.currentTab.overviewModel.overviewWidth;
+            this.currentTab.overviewModel.fromDate = this.convertDateToString(this.fromDate);
             this.currentTab.overviewModel.toDate = this.convertDateToString(this.toDate);
             this.currentTab.overviewModel.toDateWidth = this.overviewContext.measureText(this.currentTab.overviewModel.toDate).width;
 
@@ -1133,7 +1140,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             } // 2 = Metric and time labels
 
 
-            this.overviewCanvasHeight = this.currentTab.overviewModel.overviewHeight + (this.currentTab.overviewModel.labelTextHeight + this.config.overview.marginBetweenLabelsAndOverview) * 2;
+            this.overviewCanvasHeight = this.currentTab.overviewModel.overviewHeight + (this.currentTab.overviewModel.labelTextHeight + this.config.overview.marginBetweenLabelsAndOverview) * 3; // metric label, from/to date, selected date
           }
         }, {
           key: "getMaxGroupCount",
@@ -1176,7 +1183,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               this.drawUngroupedOverview();
             }
 
-            this.drawMetricLabels(); //this.drawToDateLabel();
+            this.drawMetricLabels();
           }
         }, {
           key: "setOverviewMetricStartXAndEndX",
@@ -1483,14 +1490,17 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
         }, {
           key: "drawMetricLabels",
           value: function drawMetricLabels() {
-            this.setOverviewContextLabelFont();
-
             for (var metricIndex = 0; metricIndex < this.currentTab.overviewModel.metricList.length; ++metricIndex) {
+              this.setOverviewContextLabelFont();
               var metric = this.currentTab.overviewModel.metricList[metricIndex];
               var label = this.panel.metricList[metricIndex].name;
               var width = this.overviewContext.measureText(label).width;
               this.overviewContext.fillStyle = this.getMetricDarkestColor(this.panel.metricList[metricIndex]);
               this.overviewContext.fillText(label, (metric.startX + metric.endX - width) / 2, this.currentTab.overviewModel.labelTextHeight);
+
+              if (this.isGrouped && !this.isCompressed) {
+                this.drawTimeLabels(metric);
+              }
             }
           }
         }, {
@@ -1500,19 +1510,25 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             return colorList[colorList.length - 1];
           }
         }, {
-          key: "drawToDateLabel",
-          value: function drawToDateLabel() {
+          key: "drawTimeLabels",
+          value: function drawTimeLabels(metric) {
             this.setOverviewContextTimeFont();
-            var y = this.currentTab.overviewModel.overviewStartY + this.currentTab.overviewModel.overviewHeight + this.config.overview.marginBetweenLabelsAndOverview;
-            var metric = this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.metricList.length - 1];
-            this.overviewContext.fillStyle = "black";
-            this.overviewContext.fillText(this.currentTab.overviewModel.toDate, metric.endX - this.currentTab.overviewModel.toDateWidth / 2, y);
-          } // convert date in timestamp (seconds) to string
+            metric.timeLabelY = this.config.overview.marginBetweenLabelsAndOverview;
+            var groupList;
 
-        }, {
-          key: "convertDateToString",
-          value: function convertDateToString(date) {
-            return moment(date * 1000).format(this.config.dateFormat);
+            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
+              groupList = this.getCurrentSingleMetricGroupList(metric);
+            } else {
+              groupList = this.getCurrentMultiMetricGroupList();
+            }
+
+            if (groupList.length > 0) {
+              metric.timeLabelY += groupList[groupList.length - 1].y + this.config.overview.groupedPointHeight;
+            }
+
+            this.overviewContext.fillStyle = "black";
+            this.overviewContext.fillText(this.currentTab.overviewModel.fromDate, metric.startX - this.currentTab.overviewModel.toDateWidth / 2, metric.timeLabelY);
+            this.overviewContext.fillText(this.currentTab.overviewModel.toDate, metric.endX - this.currentTab.overviewModel.toDateWidth / 2, metric.timeLabelY);
           }
         }, {
           key: "closeHistogram",
@@ -2629,7 +2645,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                     var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
 
                     if (point) {
-                      if (this.checkDataPointIsSelectedAndDrawTimeLabel(point)) {
+                      if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
                         return;
                       }
                     }
@@ -2638,7 +2654,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                   for (var pointIndex = 0; pointIndex < instanceMetric.data.length; ++pointIndex) {
                     var point = instanceMetric.data[pointIndex];
 
-                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point)) {
+                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
                       return;
                     }
                   }
@@ -2648,12 +2664,12 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           }
         }, {
           key: "checkDataPointIsSelectedAndDrawTimeLabel",
-          value: function checkDataPointIsSelectedAndDrawTimeLabel(point) {
+          value: function checkDataPointIsSelectedAndDrawTimeLabel(point, metric) {
             if (this.checkDataPointIsSelected(point)) {
               this.overviewTimeIndicatorContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
               this.overviewTimeIndicatorContext.fillStyle = "black";
               var date = this.convertDateToString(point.date);
-              var y = this.currentTab.overviewModel.overviewStartY + this.currentTab.overviewModel.overviewHeight + this.config.overview.marginBetweenLabelsAndOverview;
+              var y = metric.timeLabelY + this.config.overview.marginBetweenLabelsAndOverview;
               var x = Math.max(0, this.currentTab.overviewModel.mousePosition.x - this.currentTab.overviewModel.toDateWidth / 2);
               this.overviewTimeIndicatorContext.fillText(date, x, y);
               return true;
