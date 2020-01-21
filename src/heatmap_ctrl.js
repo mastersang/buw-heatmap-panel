@@ -34,7 +34,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseGeneralConfig() {
         this.config = {
             apiAddress: "http://localhost:3000/api/datasources/proxy/1/api/v1/query_range?query=",
-            dateFormat: "DD/MM/YY HH:mm:ss",
+            dateFormat: "DD.MM HH:mm",
             colorCount: 4,
             maxLuminanceChange: 0.8,
             marginBetweenOverviewAndFocus: 20,
@@ -93,12 +93,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseFocusGraphConfig() {
         this.config.focusGraph = {
             groupedPointWidth: 5,
-            ungroupedPointWidth: 40,
+            ungroupedPointWidth: 50,
             metricMaxHeight: 20,
             metricMinHeight: 5,
             marginBetweenMetrics: 10,
-            maxWidth: 800,
-            markerSize: 20,
+            maxWidth: 1000,
+            markerSize: 5,
             marginBetweenMarkers: 20
         }
     }
@@ -312,8 +312,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
             this.tabList = [];
             this.currentTab = this.initialiseNewTab();
-            this.currentTab.fromDate = this.convertDateToString(this.fromDate * 1000);
-            this.currentTab.toDate = this.convertDateToString(this.toDate * 1000);
+
+            // time is in milliseconds
+            this.currentTab.fromDateString = this.convertDateToString(this.fromDate);
+            this.currentTab.toDateString = this.convertDateToString(this.toDate);
 
             this.panel.metricList.forEach(() => {
                 this.currentTab.overviewModel.metricList.push(null);
@@ -392,10 +394,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 instance.values.forEach((point) => {
                     this.checkAndSetOverviewMinMax(metric, point);
                 });
-
-                if (metricIndex == 0 && metric.max > 100) {
-                    console.log(instance.metric.instance);
-                }
             });
         });
     }
@@ -853,7 +851,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
 
         this.overviewCanvasWidth = this.currentTab.overviewModel.overviewWidth;
-        this.currentTab.overviewModel.toDate = this.convertDateToString(this.toDate * 1000);
+        this.currentTab.overviewModel.toDate = this.convertDateToString(this.toDate);
         this.currentTab.overviewModel.toDateWidth = this.overviewContext.measureText(this.currentTab.overviewModel.toDate).width;
 
         if (this.isGrouped) {
@@ -870,21 +868,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     setGroupedOverviewPointWidth() {
         if (this.currentTab != this.tabList[0]) {
             var maxOriginalLength = this.getMaxMetricLengthByTab(this.tabList[0]);
-            var originalLength = this.getMaxMetricLength();
-            var currentLength = originalLength;
-            var nextScaledLength = currentLength;
-            var scale = 1;
 
-            while (currentLength < maxOriginalLength && nextScaledLength < maxOriginalLength) {
-                currentLength = nextScaledLength;
-                ++scale;
-                nextScaledLength = originalLength * scale;
-            }
+            if (maxOriginalLength > 0) {
+                var originalLength = this.getMaxMetricLength();
+                var currentLength = originalLength;
+                var nextScaledLength = currentLength;
+                var scale = 1;
 
-            if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
-                this.currentTab.overviewModel.pointWidth *= (scale - 1);
-            } else {
-                this.currentTab.overviewModel.pointWidth *= scale;
+                while (currentLength < maxOriginalLength && nextScaledLength < maxOriginalLength) {
+                    currentLength = nextScaledLength;
+                    ++scale;
+                    nextScaledLength = originalLength * scale;
+                }
+
+                if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
+                    this.currentTab.overviewModel.pointWidth *= (scale - 1);
+                } else {
+                    this.currentTab.overviewModel.pointWidth *= scale;
+                }
             }
         }
     }
@@ -1222,7 +1223,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         // don't draw overlap if group isn't selected and is in a selected metric
         if (this.currentTab.overviewModel.selectedMetricIndexList &&
-            (!this.currentTab.overviewModel.selectedMetricIndexList.includes(group.metricIndex) || group.isSelected)) {
+            (!this.currentTab.overviewModel.selectedMetricIndexList.has(group.metricIndex) || group.isSelected)) {
             this.drawBarGroupSizeWrapper(group, startX, group.overlapCount, this.config.overview.overlapColor);
         }
     }
@@ -1337,8 +1338,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.overviewContext.fillText(this.currentTab.overviewModel.toDate, metric.endX - this.currentTab.overviewModel.toDateWidth / 2, y);
     }
 
+    // convert date in timestamp (seconds) to string
     convertDateToString(date) {
-        return moment(date).format(this.config.dateFormat);
+        return moment(date * 1000).format(this.config.dateFormat);
     }
 
     closeHistogram() {
@@ -1379,10 +1381,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 });
             }
         } else {
-            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-                this.removeExistingFocusGroupInSameMetric(group);
-            }
-
             group.isSelected = true;
             this.addGroupToFocus(group);
         }
@@ -1497,22 +1495,19 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.focusGraphWidth = Math.min(this.config.focusGraph.maxWidth, pointCount * pointWidth);
                 this.scope.$apply();
                 this.currentTab.focusModel.pointWidth = Math.max(1, Math.floor(this.focusGraphWidth / pointCount));
+                var focusGraphRow = this.getElementByID("focusGraphRow");
 
-                this.$timeout(() => {
-                    var focusGraphRow = this.getElementByID("focusGraphRow");
+                if (focusGraphRow) {
+                    this.setFocusFromAndToDate();
 
-                    if (focusGraphRow) {
-                        this.setFocusFromAndToDate();
-
-                        if (!this.isGrouped) {
-                            this.positionFocusFromAndToDate();
-                        }
-
-                        this.currentTab.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
-                        this.drawFocusGraphData();
-                        this.autoSrollFocusGraph();
+                    if (!this.isGrouped) {
+                        this.positionFocusFromAndToDate();
                     }
-                });
+
+                    this.currentTab.focusModel.focusRowHeight = focusGraphRow.offsetHeight;
+                    this.drawFocusGraphData();
+                    this.autoSrollFocusGraph();
+                }
             });
         } else {
             this.showFocus = false;
@@ -1827,10 +1822,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseGroupsOverlapCount() {
-        this.currentTab.overviewModel.selectedMetricIndexList = [];
+        this.currentTab.overviewModel.selectedMetricIndexList = new Set();
 
         this.currentTab.focusModel.groupList.forEach((group) => {
-            this.currentTab.overviewModel.selectedMetricIndexList.push(group.overviewGroup.metricIndex);
+            this.currentTab.overviewModel.selectedMetricIndexList.add(group.overviewGroup.metricIndex);
         });
 
         this.currentTab.overviewModel.metricList.forEach((metric) => {
@@ -1862,12 +1857,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 }
             });
 
-            if (this.currentTab.overviewModel.selectedMetricIndexList.length > 1 &&
-                this.currentTab.overviewModel.selectedMetricIndexList.includes(group.metricIndex)) {
-                if (check == this.currentTab.overviewModel.selectedMetricIndexList.length - 1) {
+            if (group.isSelected) {
+                if (check == this.currentTab.overviewModel.selectedMetricIndexList.size - 1) {
                     ++group.overlapCount;
                 }
-            } else if (check == this.currentTab.overviewModel.selectedMetricIndexList.length) {
+            } else if (check == this.currentTab.overviewModel.selectedMetricIndexList.size) {
                 ++group.overlapCount;
             }
         });
@@ -2384,7 +2378,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         if (this.checkDataPointIsSelected(point)) {
             this.overviewTimeIndicatorContext.font = "italic " + this.config.overview.timeFontSize + "px Arial";
             this.overviewTimeIndicatorContext.fillStyle = "black";
-            var date = this.convertDateToString(point.date * 1000);
+            var date = this.convertDateToString(point.date);
             var y = this.currentTab.overviewModel.overviewStartY + this.currentTab.overviewModel.overviewHeight + this.config.overview.marginBetweenLabelsAndOverview;
             var x = Math.max(0, this.currentTab.overviewModel.mousePosition.x - this.currentTab.overviewModel.toDateWidth / 2);
             this.overviewTimeIndicatorContext.fillText(date, x, y);
@@ -2443,9 +2437,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var metric = timeRangeGroup.instanceList[0].metricList[this.currentTab.overviewModel.selectedMetricIndex];
         var timeRangeIndexList = timeRangeGroup.timeRangeIndexList;
         var startPoint = metric.data[timeRangeIndexList[0]];
-        timeRangeGroup.startTimeRangeDate = this.convertDateToString(startPoint.date * 1000);
+        timeRangeGroup.startTimeRangeDate = this.convertDateToString(startPoint.date);
         var endPoint = metric.data[timeRangeIndexList[timeRangeIndexList.length - 1]];
-        timeRangeGroup.endTimeRangeDate = this.convertDateToString(endPoint.date * 1000);
+        timeRangeGroup.endTimeRangeDate = this.convertDateToString(endPoint.date);
     }
 
     drawSelectedTimeRanges() {
@@ -2694,9 +2688,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     addNewTab() {
         var newTab = this.initialiseNewTab();
-        newTab.fromDate = this.currentTab.overviewModel.hoveredTimeRangeGroup.startTimeRangeDate;
-        newTab.toDate = this.currentTab.overviewModel.hoveredTimeRangeGroup.endTimeRangeDate;
-        this.initialiseNewTabData(newTab);
+        this.initialiseNewTabDatesAndData(newTab);
         this.currentTab = newTab;
         this.initialiseMetricMinMaxTotal();
         this.initialiseColorMap();
@@ -2705,15 +2697,55 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.initialiseCompressedTimeIndexes();
     }
 
+    initialiseNewTabDatesAndData(newTab) {
+        var timeRangeGroupList = this.getTimeRangeGroupList();
+        this.initialiseNewTabDates(newTab, timeRangeGroupList);
+        this.initialiseNewTabData(newTab);
+    }
+
+    getTimeRangeGroupList() {
+        var timeRangeGroupList = [];
+
+        this.currentTab.overviewModel.metricList.forEach((metric) => {
+            var groupList = this.getCurrentSingleMetricGroupList(metric);
+
+            groupList.forEach((group) => {
+                if (group.timeRangeIndexList && group.timeRangeIndexList.length > 0) {
+                    timeRangeGroupList.push(group);
+                }
+            });
+        });
+
+        return timeRangeGroupList;
+    }
+
+    initialiseNewTabDates(newTab, timeRangeGroupList) {
+        newTab.fromDate = -1;
+        newTab.toDate = -1;
+
+        timeRangeGroupList.forEach((group) => {
+            var timeRangeIndexList = group.timeRangeIndexList;
+            var metric = group.instanceList[0].metricList[group.metricIndex];
+            var fromDate = metric.data[timeRangeIndexList[0]].date;
+            var toDate = metric.data[timeRangeIndexList[timeRangeIndexList.length - 1]].date;
+
+            if (newTab.fromDate == -1 || newTab.fromDate > fromDate) {
+                newTab.fromDate = fromDate;
+            }
+
+            if (newTab.toDate == -1 || newTab.toDate < toDate) {
+                newTab.toDate = toDate;
+            }
+        });
+
+        newTab.fromDateString = this.convertDateToString(newTab.fromDate);
+        newTab.toDateString = this.convertDateToString(newTab.toDate);
+    }
+
     initialiseNewTabData(newTab) {
         this.currentTab.overviewModel.metricList.forEach((metric) => {
             var newMetric = {};
             newMetric.data = [];
-            var group = this.currentTab.overviewModel.hoveredTimeRangeGroup;
-            var instanceMetric = group.instanceList[0].metricList[this.currentTab.overviewModel.selectedMetricIndex];
-            var timeRangeIndexList = group.timeRangeIndexList;
-            var startDate = instanceMetric.data[timeRangeIndexList[0]].date;
-            var endDate = instanceMetric.data[timeRangeIndexList[timeRangeIndexList.length - 1]].date;
 
             metric.data.forEach((metricInstance) => {
                 var newMetricInstance = {};
@@ -2723,7 +2755,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 metricInstance.values.forEach((value) => {
                     var date = value[0];
 
-                    if (this.isBetween(date, startDate, endDate)) {
+                    if (this.isBetween(date, newTab.fromDate, newTab.toDate)) {
                         newMetricInstance.values.push(value);
                     }
                 });
@@ -2739,18 +2771,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var updatedSelectedGroups = false;
 
         if (this.currentTab.overviewModel.isSelectingTimeRange) {
-            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-                this.removeExistingGroupsInMetricByGroup(this.currentTab.overviewModel.timeRangeGroup);
-            }
-
             var removeExisting = this.currentTab.overviewModel.timeRangeStartOffset == this.currentTab.overviewModel.mousePositionXOffset;
             this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.timeRangeGroup, removeExisting);
             updatedSelectedGroups = true;
         } else if (this.currentTab.overviewModel.hoveredGroup) {
-            if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-                this.removeExistingGroupsInMetricByGroup(this.currentTab.overviewModel.hoveredGroup);
-            }
-
             this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.hoveredGroup, true);
             updatedSelectedGroups = true;
         } else {
@@ -2995,8 +3019,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 var toIndex = this.currentTab.focusModel.focusedIndexList[this.currentTab.focusModel.focusedIndexList.length - 1];
 
                 if (metric.data[fromIndex] && metric.data[toIndex]) {
-                    this.focusedFromDate = this.convertDateToString(metric.data[fromIndex].date * 1000);
-                    this.focusedToDate = this.convertDateToString(metric.data[toIndex].date * 1000);
+                    this.focusedFromDate = this.convertDateToString(metric.data[fromIndex].date);
+                    this.focusedToDate = this.convertDateToString(metric.data[toIndex].date);
                     set = true;
                     break;
                 }

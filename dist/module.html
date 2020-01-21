@@ -135,7 +135,7 @@
         <div style="margin-top: 20px">
             <span ng-repeat="tab in ctrl.tabList track by $index" ng-click="ctrl.selectTab(tab)"
                 ng-class="{tab: true, selectedTab: tab == ctrl.currentTab}">
-                {{tab.fromDate + " - " + tab.toDate}}
+                {{tab.fromDateString}} - {{tab.toDateString}}
 
                 <button ng-show="$index > 0" ng-click="ctrl.removeTab(tab)" style="margin-left: 5px;">X</button>
             </span>
