@@ -99,7 +99,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             marginBetweenMetrics: 10,
             maxWidth: 1000,
             markerSize: 5,
-            marginBetweenMarkers: 20
+            marginBetweenMarkers: 5
         }
     }
 
@@ -921,13 +921,15 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     getMaxMetricLengthByTab(tab) {
         var length = 0;
 
-        tab.overviewModel.metricList.forEach((metric) => {
-            var instanceWithMostPoints = _.maxBy(metric.data, (point) => {
-                return point.values.length;
-            });
+        if (tab.overviewModel.metricList) {
+            tab.overviewModel.metricList.forEach((metric) => {
+                var instanceWithMostPoints = _.maxBy(metric.data, (point) => {
+                    return point.values.length;
+                });
 
-            length = instanceWithMostPoints.values.length;
-        });
+                length = instanceWithMostPoints.values.length;
+            });
+        }
 
         return length;
     }
@@ -1227,8 +1229,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.drawBarGroupSizeWrapper(group, startX, group.instanceList.length, this.config.overview.groupSizeColor);
 
         // don't draw overlap if group isn't selected and is in a selected metric
-        if (this.currentTab.overviewModel.selectedMetricIndexList &&
-            (!this.currentTab.overviewModel.selectedMetricIndexList.has(group.metricIndex) || group.isSelected)) {
+        if (this.currentTab.overviewModel.selectedMetricIndexSet &&
+            (!this.currentTab.overviewModel.selectedMetricIndexSet.has(group.metricIndex) || group.isSelected)) {
             this.drawBarGroupSizeWrapper(group, startX, group.overlapCount, this.config.overview.overlapColor);
         }
     }
@@ -1837,10 +1839,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseGroupsOverlapCount() {
-        this.currentTab.overviewModel.selectedMetricIndexList = new Set();
+        this.currentTab.overviewModel.selectedMetricIndexSet = new Set();
 
         this.currentTab.focusModel.groupList.forEach((group) => {
-            this.currentTab.overviewModel.selectedMetricIndexList.add(group.overviewGroup.metricIndex);
+            this.currentTab.overviewModel.selectedMetricIndexSet.add(group.overviewGroup.metricIndex);
         });
 
         this.currentTab.overviewModel.metricList.forEach((metric) => {
@@ -1873,10 +1875,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             });
 
             if (group.isSelected) {
-                if (check == this.currentTab.overviewModel.selectedMetricIndexList.size - 1) {
+                if (check == this.currentTab.overviewModel.selectedMetricIndexSet.size - 1) {
                     ++group.overlapCount;
                 }
-            } else if (check == this.currentTab.overviewModel.selectedMetricIndexList.size) {
+            } else if (check == this.currentTab.overviewModel.selectedMetricIndexSet.size) {
                 ++group.overlapCount;
             }
         });
@@ -2823,7 +2825,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
             this.initialiseGroupsOverlapCount();
 
-            if (this.currentTab.focusModel.groupList.length > 1) {
+            if (this.currentTab.overviewModel.selectedMetricIndexSet.size > 1) {
                 this.initialiseOverlapList();
             }
 
@@ -2841,15 +2843,32 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseOverlapList() {
         this.currentTab.focusModel.overlappingList = [];
-        var firstGroup = this.currentTab.focusModel.groupList[0];
+        var metricIndex = this.currentTab.overviewModel.selectedMetricIndexSet.values().next().value;
+        var instanceList = this.getAllInstanceListForSelectedMetric(metricIndex);
 
-        firstGroup.instanceList.forEach((instance) => {
-            var check = 0;
+        instanceList.forEach((instance) => {
+            this.checkAndAddOverlappingInstance(metricIndex, instance)
+        });
+    }
 
-            for (var groupIndex = 1; groupIndex < this.currentTab.focusModel.groupList.length; ++groupIndex) {
-                var overlappingGroup = this.currentTab.focusModel.groupList[groupIndex];
+    getAllInstanceListForSelectedMetric(metricIndex) {
+        var instanceList = [];
 
-                var overlappingInstance = _.find(overlappingGroup.instanceList, (search) => {
+        this.currentTab.focusModel.groupList.forEach((group) => {
+            if (group.overviewGroup.metricIndex == metricIndex) {
+                instanceList = instanceList.concat(group.instanceList);
+            }
+        });
+
+        return instanceList;
+    }
+
+    checkAndAddOverlappingInstance(metricIndex, instance) {
+        var check = 0;
+
+        this.currentTab.focusModel.groupList.forEach((group) => {
+            if (group.overviewGroup.metricIndex != metricIndex) {
+                var overlappingInstance = _.find(group.instanceList, (search) => {
                     return search.instance == instance.instance;
                 });
 
@@ -2857,11 +2876,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     ++check;
                 }
             }
-
-            if (check == this.currentTab.focusModel.groupList.length - 1) {
-                this.currentTab.focusModel.overlappingList.push(instance);
-            }
         });
+
+        if (check == this.currentTab.overviewModel.selectedMetricIndexSet.size - 1) {
+            this.currentTab.focusModel.overlappingList.push(instance);
+        }
     }
 
     drawOverlapDetails() {

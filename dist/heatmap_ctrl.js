@@ -158,7 +158,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               marginBetweenMetrics: 10,
               maxWidth: 1000,
               markerSize: 5,
-              marginBetweenMarkers: 20
+              marginBetweenMarkers: 5
             };
           }
         }, {
@@ -1050,13 +1050,17 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           key: "getMaxMetricLengthByTab",
           value: function getMaxMetricLengthByTab(tab) {
             var length = 0;
-            tab.overviewModel.metricList.forEach(function (metric) {
-              var instanceWithMostPoints = _.maxBy(metric.data, function (point) {
-                return point.values.length;
-              });
 
-              length = instanceWithMostPoints.values.length;
-            });
+            if (tab.overviewModel.metricList) {
+              tab.overviewModel.metricList.forEach(function (metric) {
+                var instanceWithMostPoints = _.maxBy(metric.data, function (point) {
+                  return point.values.length;
+                });
+
+                length = instanceWithMostPoints.values.length;
+              });
+            }
+
             return length;
           }
         }, {
@@ -1388,7 +1392,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function drawSingleMetricBarGroupSize(group, startX) {
             this.drawBarGroupSizeWrapper(group, startX, group.instanceList.length, this.config.overview.groupSizeColor); // don't draw overlap if group isn't selected and is in a selected metric
 
-            if (this.currentTab.overviewModel.selectedMetricIndexList && (!this.currentTab.overviewModel.selectedMetricIndexList.has(group.metricIndex) || group.isSelected)) {
+            if (this.currentTab.overviewModel.selectedMetricIndexSet && (!this.currentTab.overviewModel.selectedMetricIndexSet.has(group.metricIndex) || group.isSelected)) {
               this.drawBarGroupSizeWrapper(group, startX, group.overlapCount, this.config.overview.overlapColor);
             }
           }
@@ -2066,9 +2070,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function initialiseGroupsOverlapCount() {
             var _this46 = this;
 
-            this.currentTab.overviewModel.selectedMetricIndexList = new Set();
+            this.currentTab.overviewModel.selectedMetricIndexSet = new Set();
             this.currentTab.focusModel.groupList.forEach(function (group) {
-              _this46.currentTab.overviewModel.selectedMetricIndexList.add(group.overviewGroup.metricIndex);
+              _this46.currentTab.overviewModel.selectedMetricIndexSet.add(group.overviewGroup.metricIndex);
             });
             this.currentTab.overviewModel.metricList.forEach(function (metric) {
               var groupList = _this46.getCurrentSingleMetricGroupList(metric);
@@ -2103,10 +2107,10 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               });
 
               if (group.isSelected) {
-                if (check == _this47.currentTab.overviewModel.selectedMetricIndexList.size - 1) {
+                if (check == _this47.currentTab.overviewModel.selectedMetricIndexSet.size - 1) {
                   ++group.overlapCount;
                 }
-              } else if (check == _this47.currentTab.overviewModel.selectedMetricIndexList.size) {
+              } else if (check == _this47.currentTab.overviewModel.selectedMetricIndexSet.size) {
                 ++group.overlapCount;
               }
             });
@@ -3123,7 +3127,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
               this.initialiseGroupsOverlapCount();
 
-              if (this.currentTab.focusModel.groupList.length > 1) {
+              if (this.currentTab.overviewModel.selectedMetricIndexSet.size > 1) {
                 this.initialiseOverlapList();
               }
 
@@ -3144,14 +3148,30 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var _this62 = this;
 
             this.currentTab.focusModel.overlappingList = [];
-            var firstGroup = this.currentTab.focusModel.groupList[0];
-            firstGroup.instanceList.forEach(function (instance) {
-              var check = 0;
-
-              for (var groupIndex = 1; groupIndex < _this62.currentTab.focusModel.groupList.length; ++groupIndex) {
-                var overlappingGroup = _this62.currentTab.focusModel.groupList[groupIndex];
-
-                var overlappingInstance = _.find(overlappingGroup.instanceList, function (search) {
+            var metricIndex = this.currentTab.overviewModel.selectedMetricIndexSet.values().next().value;
+            var instanceList = this.getAllInstanceListForSelectedMetric(metricIndex);
+            instanceList.forEach(function (instance) {
+              _this62.checkAndAddOverlappingInstance(metricIndex, instance);
+            });
+          }
+        }, {
+          key: "getAllInstanceListForSelectedMetric",
+          value: function getAllInstanceListForSelectedMetric(metricIndex) {
+            var instanceList = [];
+            this.currentTab.focusModel.groupList.forEach(function (group) {
+              if (group.overviewGroup.metricIndex == metricIndex) {
+                instanceList = instanceList.concat(group.instanceList);
+              }
+            });
+            return instanceList;
+          }
+        }, {
+          key: "checkAndAddOverlappingInstance",
+          value: function checkAndAddOverlappingInstance(metricIndex, instance) {
+            var check = 0;
+            this.currentTab.focusModel.groupList.forEach(function (group) {
+              if (group.overviewGroup.metricIndex != metricIndex) {
+                var overlappingInstance = _.find(group.instanceList, function (search) {
                   return search.instance == instance.instance;
                 });
 
@@ -3159,11 +3179,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                   ++check;
                 }
               }
-
-              if (check == _this62.currentTab.focusModel.groupList.length - 1) {
-                _this62.currentTab.focusModel.overlappingList.push(instance);
-              }
             });
+
+            if (check == this.currentTab.overviewModel.selectedMetricIndexSet.size - 1) {
+              this.currentTab.focusModel.overlappingList.push(instance);
+            }
           }
         }, {
           key: "drawOverlapDetails",
