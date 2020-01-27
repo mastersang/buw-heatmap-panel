@@ -1004,20 +1004,23 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
               if (maxOriginalLength > 0) {
                 var originalLength = this.getMaxMetricLength();
-                var currentLength = originalLength;
-                var nextScaledLength = currentLength;
-                var scale = 1;
 
-                while (currentLength < maxOriginalLength && nextScaledLength < maxOriginalLength) {
-                  currentLength = nextScaledLength;
-                  ++scale;
-                  nextScaledLength = originalLength * scale;
-                }
+                if (originalLength > 0) {
+                  var currentLength = originalLength;
+                  var nextScaledLength = currentLength;
+                  var scale = 1;
 
-                if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
-                  this.currentTab.overviewModel.pointWidth *= scale - 1;
-                } else {
-                  this.currentTab.overviewModel.pointWidth *= scale;
+                  while (currentLength < maxOriginalLength && nextScaledLength < maxOriginalLength) {
+                    currentLength = nextScaledLength;
+                    ++scale;
+                    nextScaledLength = originalLength * scale;
+                  }
+
+                  if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
+                    this.currentTab.overviewModel.pointWidth *= scale - 1;
+                  } else {
+                    this.currentTab.overviewModel.pointWidth *= scale;
+                  }
                 }
               }
             }
@@ -2449,6 +2452,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
             if (this.currentTab.overviewModel.isSelectingTimeRange) {
               this.initialiseSelectedGroupTimeRangeIndexList();
+              this.initialiseGroupsOverlapCount();
               this.drawSelectedTimeRanges();
               this.drawFocusGraph(false);
             } else {
@@ -2705,6 +2709,12 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function initialiseSelectedGroupTimeRangeIndexList() {
             var _this55 = this;
 
+            if (!this.currentTab.overviewModel.timeRangeGroup.isSelected) {
+              this.addOrRemoveGroupToFocus(this.currentTab.overviewModel.timeRangeGroup, false);
+              this.drawOverview();
+              this.drawSelectedGroupsMarkers();
+            }
+
             this.currentTab.overviewModel.timeRangeGroup.timeRangeIndexList = [];
             var metricIndex = this.currentTab.overviewModel.selectedMetricIndex;
             var instanceMetric = this.currentTab.overviewModel.timeRangeGroup.instanceList[0].metricList[metricIndex];
@@ -2826,13 +2836,29 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var endX = endPoint.x + this.currentTab.overviewModel.pointWidth;
             var width = endX - startX;
             var height = group.y - startY;
-            this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
+
+            if (group.overlapCount > 0 || this.currentTab.focusModel.groupList.length == 1) {
+              this.overviewTimeIndicatorContext.fillRect(startX, startY, width, height);
+            } else {
+              this.drawSelectedTimeRangeVerticalLine(startX, startY, group.y);
+              this.drawSelectedTimeRangeVerticalLine(endX, startY, group.y);
+            }
+
             var position = {
               startX: startX,
               endX: endX,
               startY: startY
             };
             this.currentTab.overviewModel.timeRangePositionMap.set(group, position);
+          }
+        }, {
+          key: "drawSelectedTimeRangeVerticalLine",
+          value: function drawSelectedTimeRangeVerticalLine(x, startY, endY) {
+            this.overviewTimeIndicatorContext.beginPath();
+            this.overviewTimeIndicatorContext.moveTo(x, startY);
+            this.overviewTimeIndicatorContext.lineTo(x, endY);
+            this.overviewTimeIndicatorContext.stroke();
+            this.overviewTimeIndicatorContext.closePath();
           }
         }, {
           key: "drawFocusArea",
@@ -2892,7 +2918,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               if (this.currentTab.overviewModel.hoveredMarker) {
                 this.startFocusMarkerInterval(this.currentTab.overviewModel.hoveredMarker.group);
               } else if (this.currentTab.overviewModel.isHoveringOnTimeRange) {
-                if (this.currentTab.overviewModel.mouseIsInsideTimeRange) {
+                if (this.currentTab.overviewModel.mouseIsInsideTimeRange && this.currentTab.overviewModel.hoveredTimeRangeGroup.overlapCount > 0) {
                   this.addNewTab();
                   this.selectTab(this.currentTab);
                 } else {
@@ -3068,20 +3094,35 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               var newMetric = {};
               newMetric.data = [];
               metric.data.forEach(function (metricInstance) {
-                var newMetricInstance = {};
-                newMetricInstance.metric = metricInstance.metric;
-                newMetricInstance.values = [];
-                metricInstance.values.forEach(function (value) {
-                  var date = value[0];
+                if (_this61.checkInstanceIsInOverlapList(metricInstance)) {
+                  var newMetricInstance = {};
+                  newMetricInstance.metric = metricInstance.metric;
+                  newMetricInstance.values = [];
+                  metricInstance.values.forEach(function (value) {
+                    var date = value[0];
 
-                  if (_this61.isBetween(date, newTab.fromDate, newTab.toDate)) {
-                    newMetricInstance.values.push(value);
-                  }
-                });
-                newMetric.data.push(newMetricInstance);
+                    if (_this61.isBetween(date, newTab.fromDate, newTab.toDate)) {
+                      newMetricInstance.values.push(value);
+                    }
+                  });
+                  newMetric.data.push(newMetricInstance);
+                }
               });
               newTab.overviewModel.metricList.push(newMetric);
             });
+          }
+        }, {
+          key: "checkInstanceIsInOverlapList",
+          value: function checkInstanceIsInOverlapList(instance) {
+            for (var i = 0; i < this.currentTab.focusModel.overlappingList.length; ++i) {
+              var overlappingInstance = this.currentTab.focusModel.overlappingList[i];
+
+              if (instance.metric.instance == overlappingInstance.instance) {
+                return true;
+              }
+            }
+
+            return false;
           }
         }, {
           key: "updateSelectedGroupListAndDrawFocusGraph",
