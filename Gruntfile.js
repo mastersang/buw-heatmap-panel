@@ -21,6 +21,12 @@ module.exports = function (grunt) {
         src: ['img/*'],
         dest: 'dist/src/'
       },
+      externals: {
+        cwd: 'src',
+        expand: true,
+        src: ['**/external/*'],
+        dest: 'dist'
+      },
       pluginDef: {
         expand: true,
         src: ['plugin.json', 'README.md'],
@@ -44,7 +50,8 @@ module.exports = function (grunt) {
         ],
         presets: [
           ["@babel/preset-env"]
-        ]
+        ],
+	exclude: ['src/worker.js']
       },
       dist: {
         files: [{

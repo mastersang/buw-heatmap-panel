@@ -532,15 +532,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     calculateInstanceMetricTotalMinMax() {
         this.currentTab.overviewModel.data.forEach((instance) => {
             instance.metricList.forEach((metric, metricIndex) => {
-                metric.total = 0;
                 metric.min = -1;
                 metric.max = -1;
 
                 metric.data.forEach((point) => {
-                    // sum the "threshold" average of each data point instead of the actual value of the data point 
-                    //    metric.total += this.getThresholdAverage(point.value, this.currentTab.overviewModel.metricList[metricIndex].colorMap);
-                    metric.total += point.value;
-
                     if (metric.min == -1 || point.value < metric.min) {
                         metric.min = point.value;
                     }
@@ -582,8 +577,30 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseOverviewGroups() {
+        this.initialiseDTPData();
         this.initialiseSingleMetricGroups();
         this.initialiseMultiMetricGroups();
+    }
+
+    initialiseDTPData() {
+        this.processedGroupCount = 0;
+        this.isGrouping = true;
+
+        this.currentTab.overviewModel.metricList.forEach((metric, metricIndex) => {
+            var worker = new Worker("/public/plugins/buw-heatmap-panel/worker.js");
+            worker.postMessage([this.currentTab.overviewModel.data, metricIndex]);
+
+            worker.onmessage = (e) => {
+                this.$timeout(() => {
+                    metric.DTPList = e.data[0];
+                    ++this.processedGroupCount;
+
+                    if (this.processedGroupCount == this.currentTab.overviewModel.metricList.length) {
+                        this.isGrouping = false;
+                    }
+                });
+            }
+        });
     }
 
     initialiseSingleMetricGroups() {
@@ -1161,10 +1178,12 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawOverviewInstancePoint(instance, metricIndex, overviewMetric, point, pointIndex, pointHeight) {
-        point.x = overviewMetric.startX + pointIndex * this.currentTab.overviewModel.pointWidth;
-        point.color = this.getColorFromMap(point.value, this.currentTab.overviewModel.metricList[metricIndex].colorMap);
-        this.overviewContext.fillStyle = point.color;
-        this.overviewContext.fillRect(point.x, instance.y, this.currentTab.overviewModel.pointWidth, pointHeight);
+        if (point.value != null) {
+            point.x = overviewMetric.startX + pointIndex * this.currentTab.overviewModel.pointWidth;
+            point.color = this.getColorFromMap(point.value, this.currentTab.overviewModel.metricList[metricIndex].colorMap);
+            this.overviewContext.fillStyle = point.color;
+            this.overviewContext.fillRect(point.x, instance.y, this.currentTab.overviewModel.pointWidth, pointHeight);
+        }
     }
 
     getColorFromMap(value, map) {

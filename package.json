@@ -1,5 +1,5 @@
 {
-  "name": "buw-cpu_heatmap-panel",
+  "name": "buw-heatmap-panel",
   "private": true,
   "version": "0.0.1",
   "description": "Heatmap for CPU Usage",
@@ -14,7 +14,8 @@
     "grunt-contrib-copy": "^1.0.0",
     "grunt-contrib-uglify": "^4.0.1",
     "grunt-contrib-watch": "^1.1.0",
-    "load-grunt-tasks": "^4.0.0"
+    "load-grunt-tasks": "^4.0.0",
+    "dynamic-time-warping": "^1.0.0"
   },
   "dependencies": {
     "datejs": "^1.0.0-rc3",
