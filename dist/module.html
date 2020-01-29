@@ -143,12 +143,12 @@
 
         <div style="margin-top: 20px">
             <!-- Overview graph & focus area -->
-            <div ng-show="ctrl.isGrouped && ctrl.isGrouping">
-                Processing groups ... ({{ctrl.processedGroupCount }} /
+            <div ng-show="ctrl.isGrouped && ctrl.currentTab.isClustering">
+                Clustering groups ... ({{ctrl.currentTab.clusteredMetricCount }} /
                 {{ctrl.currentTab.overviewModel.metricList.length}})
             </div>
 
-            <div ng-hide="ctrl.isGrouped && ctrl.isGrouping"
+            <div ng-hide="ctrl.isGrouped && ctrl.currentTab.isClustering"
                 style="position: fixed; width: 1700px; height: 700px; overflow: scroll;">
                 <div style="position: relative">
                     <canvas id="overviewCanvas" style="position: absolute" width="{{ctrl.overviewCanvasWidth}}"

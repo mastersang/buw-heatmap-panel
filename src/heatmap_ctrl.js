@@ -38,7 +38,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             colorCount: 4,
             maxLuminanceChange: 0.8,
             marginBetweenOverviewAndFocus: 20,
-            groupingThresholdCount: 50,
+            groupingThresholdCount: 100,
             startingGreyColor: 240,
             endingGrayColor: 80,
             intervalTimer: 70
@@ -254,7 +254,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.groupingMode = this.enumList.groupingMode.SINGLE;
         this.groupSizeChart = this.enumList.groupSizeChart.HORIZONTAL_BAR;
-        this.groupingThreshold = 0;
+        this.groupingThreshold = 10;
         this.timeHighlightMode = this.enumList.timeHighlightMode.POINT;
         this.initialiseOverviewCanvasCursor();
     }
@@ -532,10 +532,13 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     calculateInstanceMetricTotalMinMax() {
         this.currentTab.overviewModel.data.forEach((instance) => {
             instance.metricList.forEach((metric, metricIndex) => {
+                metric.total = 0;
                 metric.min = -1;
                 metric.max = -1;
 
                 metric.data.forEach((point) => {
+                    metric.total += point.value;
+
                     if (metric.min == -1 || point.value < metric.min) {
                         metric.min = point.value;
                     }
@@ -577,26 +580,29 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseOverviewGroups() {
-        this.initialiseDTPData();
-        this.initialiseSingleMetricGroups();
-        this.initialiseMultiMetricGroups();
-    }
-
-    initialiseDTPData() {
-        this.processedGroupCount = 0;
-        this.isGrouping = true;
+        this.currentTab.clusteredMetricCount = 0;
+        this.currentTab.isClustering = true;
 
         this.currentTab.overviewModel.metricList.forEach((metric, metricIndex) => {
             var worker = new Worker("/public/plugins/buw-heatmap-panel/worker.js");
-            worker.postMessage([this.currentTab.overviewModel.data, metricIndex]);
+            worker.postMessage([this.currentTab, metric, metricIndex]);
 
             worker.onmessage = (e) => {
                 this.$timeout(() => {
                     metric.DTPList = e.data[0];
-                    ++this.processedGroupCount;
 
-                    if (this.processedGroupCount == this.currentTab.overviewModel.metricList.length) {
-                        this.isGrouping = false;
+                    if (metric.DTPList.length > 0) {
+                        metric.maxDTP = metric.DTPList[metric.DTPList.length - 1].distance;
+                    } else {
+                        metric.maxDTP = 0;
+                    }
+
+                    ++this.currentTab.clusteredMetricCount;
+
+                    if (this.currentTab.clusteredMetricCount == this.currentTab.overviewModel.metricList.length) {
+                        this.initialiseSingleMetricGroups();
+                        this.initialiseMultiMetricGroups();
+                        this.currentTab.isClustering = false;
                     }
                 });
             }
@@ -617,7 +623,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         for (var groupingThreshold = 0; groupingThreshold <= this.config.groupingThresholdCount; ++groupingThreshold) {
             var groupList = [];
-            this.populateSingleMetricGroupList(groupList, metricIndex, groupingThreshold);
+            this.populateSingleMetricGroupList(groupList, metric, metricIndex, groupingThreshold);
 
             groupList.sort((first, second) => {
                 return first.total - second.total;
@@ -632,32 +638,116 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    populateSingleMetricGroupList(groupList, metricIndex, groupingThreshold) {
+    populateSingleMetricGroupList(groupList, metric, metricIndex, groupingThreshold) {
+        if (metric.DTPList.length > 0) {
+            this.populateSingMetricGroupListFromDTPList(groupList, metric, metricIndex, groupingThreshold);
+        }
+
+        this.groupInstancesWithNoDataToOneGroup(groupList, metricIndex);
+
         this.currentTab.overviewModel.data.forEach((instance) => {
-            var group = _.find(groupList, (search) => {
-                return this.checkInstanceIsInGroup(search.total, instance.metricList[metricIndex].total, groupingThreshold);
-            });
+            var group = this.searchExistingSingleMetricGroup(groupList, instance);
 
             if (!group) {
+                if (metricIndex == 0 && groupingThreshold == 100) {
+                    console.log(instance.instance);
+                }
+
                 group = this.initialiseNewSingleMetricGroup(instance, metricIndex);
                 groupList.push(group);
             }
-
-            group.instanceList.push(instance);
         });
     }
 
-    checkInstanceIsInGroup(groupTotal, instanceTotal, groupingThreshold) {
-        var thresholdValue = groupingThreshold * 0.01;
-        var min = groupTotal * (1 - thresholdValue);
-        var max = groupTotal * (1 + thresholdValue);
-        return this.isBetween(instanceTotal, min, max);
+    populateSingMetricGroupListFromDTPList(groupList, metric, metricIndex, groupingThreshold) {
+        var threshold = metric.maxDTP * groupingThreshold / 100;
+        var DTPIndex = 0;
+        var DTP;
+
+        do {
+            DTP = metric.DTPList[DTPIndex];
+            var firstInstance = DTP.firstInstance;
+            var secondInstance = DTP.secondInstance;
+            var firstGroup = this.searchExistingSingleMetricGroup(groupList, firstInstance);
+            var secondGroup = this.searchExistingSingleMetricGroup(groupList, secondInstance);
+            this.processSingleMetricGroups(groupList, metricIndex, firstInstance, secondInstance, firstGroup, secondGroup);
+
+            ++DTPIndex;
+        } while (DTP.distance <= threshold && DTPIndex < metric.DTPList.length);
+    }
+
+    groupInstancesWithNoDataToOneGroup(groupList, metricIndex) {
+        var emptyGroup;
+
+        this.currentTab.overviewModel.data.forEach((instance) => {
+            var instanceMetric = instance.metricList[metricIndex];
+
+            if (instanceMetric.data == null || instanceMetric.data.length == 0) {
+                if (emptyGroup) {
+                    emptyGroup.instanceList.push(instance);
+                } else {
+                    emptyGroup = this.initialiseNewSingleMetricGroup(instance, metricIndex);
+                }
+            }
+        });
+
+        if (emptyGroup) {
+            groupList.push(emptyGroup);
+        }
+    }
+
+    searchExistingSingleMetricGroup(groupList, instance) {
+        for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+            var group = groupList[groupIndex];
+
+            for (var instanceIndex = 0; instanceIndex < group.instanceList.length; ++instanceIndex) {
+                var groupInstance = group.instanceList[instanceIndex];
+
+                if (groupInstance.instance == instance.instance) {
+                    return group;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    processSingleMetricGroups(groupList, metricIndex, firstInstance, secondInstance, firstGroup, secondGroup) {
+        if (firstGroup == null) {
+            if (secondGroup == null) {
+                var group = this.initialiseNewSingleMetricGroup(firstInstance, metricIndex);
+                group.instanceList.push(secondInstance);
+                groupList.push(group);
+            } else {
+                secondGroup.instanceList.push(firstInstance);
+            }
+        } else if (secondGroup == null) {
+            firstGroup.instanceList.push(secondInstance);
+        } else if (firstGroup != secondGroup) {
+            this.mergeGroups(firstGroup, secondGroup);
+
+            _.remove(groupList, (search) => {
+                return search == secondGroup;
+            });
+        }
+    }
+
+    mergeGroups(firstGroup, secondGroup) {
+        secondGroup.instanceList.forEach((instance) => {
+            var existing = _.find(firstGroup.instanceList, (search) => {
+                return search.instance == instance.instance;
+            });
+
+            if (!existing) {
+                firstGroup.instanceList.push(instance);
+            }
+        });
     }
 
     initialiseNewSingleMetricGroup(instance, metricIndex) {
         var group = {};
         group.metricIndex = metricIndex;
-        group.instanceList = [];
+        group.instanceList = [instance];
         group.markerX = 0;
         group.total = instance.metricList[metricIndex].total;
         return group;
@@ -679,13 +769,17 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.currentTab.overviewModel.data.forEach((instance) => {
             instance.groupList = [];
 
-            this.currentTab.overviewModel.metricList.forEach((metric, metricIndex) => {
+            this.currentTab.overviewModel.metricList.forEach((metric) => {
                 var groupList = this.getCurrentSingleMetricGroupList(metric);
 
                 for (var i = 0; i < groupList.length; ++i) {
                     var group = groupList[i];
 
-                    if (this.checkInstanceIsInGroup(group.total, instance.metricList[metricIndex].total, this.groupingThreshold)) {
+                    var check = _.find(group.instanceList, (search) => {
+                        return search.instance == instance.instance;
+                    })
+
+                    if (check) {
                         instance.groupList.push(group);
                         break;
                     }
@@ -697,13 +791,13 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     initialiseMultiMetricGroups() {
         this.currentTab.overviewModel.thresholdGroupListMap = new Map();
 
-        for (var groupingThreshold = 0; groupingThreshold <= this.config.groupingThresholdCount; ++groupingThreshold) {
-            var groupList = [];
-            this.populateMultiMetricGroupList(groupList, groupingThreshold);
-            this.currentTab.overviewModel.thresholdGroupListMap.set(groupingThreshold, groupList);
-        }
-
-        this.initialiseMultiMetricGroupsColor();
+        /* for (var groupingThreshold = 0; groupingThreshold <= this.config.groupingThresholdCount; ++groupingThreshold) {
+             var groupList = [];
+             this.populateMultiMetricGroupList(groupList, groupingThreshold);
+             this.currentTab.overviewModel.thresholdGroupListMap.set(groupingThreshold, groupList);
+         }
+ 
+         this.initialiseMultiMetricGroupsColor();*/
     }
 
     populateMultiMetricGroupList(groupList, groupingThreshold) {
@@ -947,7 +1041,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     return point.values.length;
                 });
 
-                length = instanceWithMostPoints.values.length;
+                if (instanceWithMostPoints) {
+                    length = instanceWithMostPoints.values.length;
+                }
             });
         }
 
@@ -963,15 +1059,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.currentTab.overviewModel.metricList.forEach((metric) => {
                 this.overviewCanvasWidth += this.getMaxGroupSizeBarLength(metric) * this.config.overview.groupSizeBarWidth;
             });
-
-            /*
-            if (this.groupSizeChart == this.enumList.groupSizeChart.HORIZONTAL_BAR) {
-                this.currentTab.overviewModel.metricList.forEach((metric) => {
-                    this.overviewCanvasWidth += this.getMaxGroupSizeBarLength(metric) * this.config.overview.groupSizeBarWidth;
-                });
-            } else {
-                this.overviewCanvasWidth += this.currentTab.overviewModel.metricList.length + this.config.overview.pieRadius * 2;
-            }*/
         } else {
             if (this.groupSizeChart == this.enumList.groupSizeChart.HORIZONTAL_BAR) {
                 this.overviewCanvasWidth += this.config.overview.marginBetweenMetricAndGroupSize +
@@ -989,7 +1076,11 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             return group.instanceList.length;
         });
 
-        return largestGroup.instanceList.length * this.config.overview.groupSizeBarWidth;
+        if (largestGroup) {
+            return largestGroup.instanceList.length * this.config.overview.groupSizeBarWidth;
+        } else {
+            return 0;
+        }
     }
 
     getCurrentSingleMetricGroupList(metric) {
@@ -1056,7 +1147,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     setOverviewContextLabelFont() {
-        this.overviewContext.font = "bold " + this.config.overview.metricFontSize + "px Arial";
+        this.overviewContext.font = "italic " + (this.config.overview.metricFontSize - 1) + "px Arial";
     }
 
     drawOverviewData() {
@@ -1677,7 +1768,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.currentTab.focusModel.groupList = [];
         this.currentTab.overviewModel.timeRangePositionMap = new Map();
         this.deselectSingleMetricGroups();
-        this.deselectMultiMetricGroups();
+        // this.deselectMultiMetricGroups();
     }
 
     deselectSingleMetricGroups() {
@@ -1724,7 +1815,22 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     groupUngroup() {
         this.isGrouped = !this.isGrouped;
-        this.changeGroupingSelection();
+
+        if (this.isGrouped && this.currentTab.isClustering) {
+            this.waitUntilGroupProcessingIsFinished();
+        } else {
+            this.changeGroupingSelection();
+        }
+    }
+
+    waitUntilGroupProcessingIsFinished() {
+        if (this.currentTab.isClustering) {
+            this.$timeout(() => {
+                this.waitUntilGroupProcessingIsFinished();
+            }, 1000);
+        } else if (this.isGrouped) {
+            this.changeGroupingSelection();
+        }
     }
 
     mergeSelectedGroups() {
@@ -1836,13 +1942,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         focusGroup.mainMetricIndex = this.currentTab.overviewModel.selectedMetricIndex;
 
         group.instanceList.forEach((overviewInstance) => {
+            var length = 0;
+
             var metricWithMostData = _.maxBy(overviewInstance.metricList, (metric) => {
                 return metric.data.length;
             });
 
-            this.currentTab.focusModel.focusedIndexList = Array.from(Array(metricWithMostData.data.length).keys());
+            if (metricWithMostData) {
+                length = metricWithMostData.data.length;
+            }
+
+            this.currentTab.focusModel.focusedIndexList = Array.from(Array(length).keys());
             var focusInstance = this.getFocusInstance(overviewInstance, this.currentTab.focusModel.focusedIndexList);
             focusGroup.instanceList.push(focusInstance);
+
         });
 
         this.currentTab.focusModel.groupList.push(focusGroup);
@@ -2096,20 +2209,31 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     selectTab(tab) {
         this.currentTab = tab;
+        this.waitForTabProcessingToFinish(tab);
+    }
 
-        this.$timeout(() => {
-            this.drawOverview();
-            this.drawSelectedGroupsMarkers();
-            this.drawFocusGraph();
+    waitForTabProcessingToFinish(tab) {
+        if (this.currentTab == tab) {
+            if (this.currentTab.isClustering) {
+                this.$timeout(() => {
+                    this.waitForTabProcessingToFinish(tab);
+                }, 1000);
+            } else {
+                this.$timeout(() => {
+                    this.drawOverview();
+                    this.drawSelectedGroupsMarkers();
+                    this.drawFocusGraph();
 
-            this.$timeout(() => {
-                if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
-                    this.drawTimeIndicators();
-                } else {
-                    this.drawSelectedTimeRanges();
-                }
-            });
-        });
+                    this.$timeout(() => {
+                        if (this.timeHighlightMode == this.enumList.timeHighlightMode.POINT) {
+                            this.drawTimeIndicators();
+                        } else {
+                            this.drawSelectedTimeRanges();
+                        }
+                    });
+                });
+            };
+        }
     }
 
     removeTab(tab) {
@@ -2881,11 +3005,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     drawFocusAfterUpdatingSelectedGroups() {
         if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
             this.initialiseGroupsOverlapCount();
-
-            if (this.currentTab.overviewModel.selectedMetricIndexSet.size > 1) {
-                this.initialiseOverlapList();
-            }
-
+            this.initialiseOverlapList();
             this.drawOverview();
         }
 

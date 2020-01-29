@@ -5,7 +5,8 @@ onmessage = function (e) {
 
   try {
     var data = e.data[0];
-    var metricIndex = e.data[1];
+    var metric = e.data[1];
+    var metricIndex = e.data[2];
     data.forEach((instance, instanceIndex) => {
       var instanceMetric = instance.metricList[metricIndex];
 
@@ -30,6 +31,9 @@ onmessage = function (e) {
     console.log(e);
   }
 
+  DTPList.sort(function (first, second) {
+    return first.distance - second.distance;
+  });
   postMessage([DTPList]);
 };
 
