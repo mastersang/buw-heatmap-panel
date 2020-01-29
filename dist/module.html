@@ -55,7 +55,7 @@
                         style="width:70px">{{ctrl.isGrouped ? "Ungroup" : "Group"}}</button>
                 </td>
 
-                <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
+                <td ng-show="ctrl.isGrouped && !ctrl.currentTab.isClustering" class="leftPaddingCell">
                     <div class="input-box">
                         <table>
                             <tr>
@@ -71,7 +71,7 @@
 
                                 <td class="leftPaddingCell">
                                     <span style="font-style: italic">
-                                        {{ctrl.groupingThreshold}}
+                                        {{ctrl.groupingThreshold}} %
                                     </span>
                                 </td>
                             </tr>
@@ -79,7 +79,7 @@
                     </div>
                 </td>
 
-                <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
+                <td ng-show="ctrl.isGrouped && !ctrl.currentTab.isClustering" class="leftPaddingCell">
                     <div class="input-box">
                         <table>
                             <tr>
@@ -104,7 +104,7 @@
                 </td>
 
                 <!-- Time highlight mode -->
-                <td ng-show="ctrl.isGrouped" class="leftPaddingCell">
+                <td ng-show="ctrl.isGrouped && !ctrl.currentTab.isClustering" class="leftPaddingCell">
                     <div class="input-box">
                         <table>
                             <tr>
@@ -144,8 +144,7 @@
         <div style="margin-top: 20px">
             <!-- Overview graph & focus area -->
             <div ng-show="ctrl.isGrouped && ctrl.currentTab.isClustering">
-                Clustering groups ... ({{ctrl.currentTab.clusteredMetricCount }} /
-                {{ctrl.currentTab.overviewModel.metricList.length}})
+                Clustering {{ctrl.currentTab.clusteredMetricCount }}/{{ctrl.currentTab.overviewModel.metricList.length}}
             </div>
 
             <div ng-hide="ctrl.isGrouped && ctrl.currentTab.isClustering"
