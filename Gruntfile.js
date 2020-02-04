@@ -51,7 +51,7 @@ module.exports = function (grunt) {
         presets: [
           ["@babel/preset-env"]
         ],
-	exclude: ['src/worker.js']
+	exclude: ['src/single_metric_worker.js', , 'src/multi_metric_worker.js']
       },
       dist: {
         files: [{

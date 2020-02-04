@@ -144,7 +144,16 @@
         <div style="margin-top: 20px">
             <!-- Overview graph & focus area -->
             <div ng-show="ctrl.isGrouped && ctrl.currentTab.isClustering">
-                Clustering {{ctrl.currentTab.clusteredMetricCount }}/{{ctrl.currentTab.overviewModel.metricList.length}}
+                Clustering
+
+                <span ng-show="ctrl.currentTab.clusteredMetricCount < ctrl.currentTab.overviewModel.metricList.length">
+                    single-metric
+                    {{ctrl.currentTab.clusteredMetricCount }}/{{ctrl.currentTab.overviewModel.metricList.length}}
+                </span>
+
+                <span ng-hide="ctrl.currentTab.clusteredMetricCount < ctrl.currentTab.overviewModel.metricList.length">
+                    multi-metric
+                </span>
             </div>
 
             <div ng-hide="ctrl.isGrouped && ctrl.currentTab.isClustering"

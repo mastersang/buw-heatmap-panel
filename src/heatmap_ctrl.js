@@ -586,32 +586,36 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var newMetricList = tab.overviewModel.metricList.slice();
 
         newMetricList.forEach((metric, metricIndex) => {
-            var worker = new Worker("/public/plugins/buw-heatmap-panel/worker.js");
-            var param = this.getWorkerParam(metric, metricIndex);
+            var worker = new Worker("/public/plugins/buw-heatmap-panel/single_metric_worker.js");
+            var param = this.getSingleMetricWorkerParam(metric, metricIndex);
             worker.postMessage([param]);
 
             worker.onmessage = (e) => {
-                this.handleWorkerTaskFinished(e, tab, metricIndex);
+                this.handleFinishedSingleMetricClustering(e, tab, metricIndex);
             }
         });
     }
 
-    getWorkerParam(metric, metricIndex) {
+    getSingleMetricWorkerParam(metric, metricIndex) {
+        var param = this.getWorkerParam();
         var panelMetric = this.panel.metricList[metricIndex];
         var metricName = panelMetric.name;
         var colorList = panelMetric.colorList;
+        param.metric = metric;
+        param.metricIndex = metricIndex;
+        param.metricName = metricName;
+        param.colorList = colorList;
+        return param;
+    }
 
+    getWorkerParam() {
         return {
             tab: this.currentTab,
-            config: this.config,
-            metric: metric,
-            metricIndex: metricIndex,
-            metricName: metricName,
-            colorList: colorList,
+            config: this.config
         }
     }
 
-    handleWorkerTaskFinished(e, tab, metricIndex) {
+    handleFinishedSingleMetricClustering(e, tab, metricIndex) {
         this.$timeout(() => {
             var metric = e.data[0];
             tab.overviewModel.metricList[metricIndex] = metric;
@@ -622,7 +626,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
                 this.initialiseSingleMetricInstanceGroupList(tab);
                 this.initialiseMultiMetricGroups();
-                tab.isClustering = false;
             }
         });
     }
@@ -652,75 +655,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     initialiseMultiMetricGroups() {
         this.currentTab.overviewModel.thresholdGroupListMap = new Map();
+        var tab = this.currentTab;
+        var worker = new Worker("/public/plugins/buw-heatmap-panel/multi_metric_worker.js");
+        var param = this.getWorkerParam();
+        worker.postMessage([param]);
 
-        /* for (var groupingThreshold = 0; groupingThreshold <= this.config.groupingThresholdCount; ++groupingThreshold) {
-             var groupList = [];
-             this.populateMultiMetricGroupList(groupList, groupingThreshold);
-             this.currentTab.overviewModel.thresholdGroupListMap.set(groupingThreshold, groupList);
-         }
- 
-         this.initialiseMultiMetricGroupsColor();*/
+        worker.onmessage = (e) => {
+            this.handleFinishedMultiMetricClustering(e, tab);
+        }
     }
 
-    populateMultiMetricGroupList(groupList, groupingThreshold) {
-        this.currentTab.overviewModel.data.forEach((instance) => {
-            var group = this.findExistingMultiMetricGroup(groupList, instance, groupingThreshold);
-
-            if (!group) {
-                group = this.initialiseNewMultiMetricGroup(instance, groupList);
-                groupList.push(group);
-            }
-
-            group.instanceList.push(instance);
-
-            for (var i = 0; i < instance.metricList.length; ++i) {
-                var metric = group.metricList[i];
-                metric.total = (metric.total * (group.instanceList.length - 1) + instance.metricList[i].total) / group.instanceList.length;
-            }
-        });
-    }
-
-    findExistingMultiMetricGroup(groupList, instance, groupingThreshold) {
-        var group = _.find(groupList, (search) => {
-            for (var i = 0; i < instance.metricList.length; ++i) {
-                var metric = search.metricList[i];
-
-                if (!this.checkInstanceIsInGroup(metric.total, instance.metricList[i].total, groupingThreshold)) {
-                    return false;
-                }
-            }
-
-            return true;
-        });
-
-        return group;
-    }
-
-    initialiseNewMultiMetricGroup(instance, groupList) {
-        var group = {};
-        group.metricList = [];
-        group.instanceList = [];
-        group.name = "Group " + (groupList.length + 1);
-        group.markerX = 0;
-
-        instance.metricList.forEach((instanceMetric) => {
-            var groupMetric = {};
-            groupMetric.total = instanceMetric.total;
-            group.metricList.push(groupMetric);
-        });
-
-        return group;
-    }
-
-    initialiseMultiMetricGroupsColor() {
-        this.currentTab.overviewModel.thresholdGroupListMap.forEach((groupList) => {
-            var luminanceChange = (this.config.startingGreyColor - this.config.endingGrayColor) / groupList.length;
-
-            groupList.forEach((group, groupIndex) => {
-                var greyValue = Math.round(this.config.startingGreyColor - luminanceChange * groupIndex);
-                group.color = "rgba(" + greyValue + ", " + greyValue + ", " + greyValue + ", 1)";
-            });
-        })
+    handleFinishedMultiMetricClustering(e, tab) {
+        tab.isClustering = false;
+        var result = e.data[0];
+        tab.overviewModel = result.overviewModel;
     }
 
     initialiseCompressedTimeIndexes() {
@@ -2744,8 +2692,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         });
 
         this.currentTab = newTab;
-        //  this.initialiseMetricMinMaxTotal();
-        //this.initialiseColorMap();
         this.initialiseOverviewData();
 
         this.initialiseOverviewGroups();

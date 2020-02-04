@@ -1,5 +1,5 @@
 importScripts("./external/dynamic-time-warping.js");
-importScripts("./external/lodash.js"); //import DynamicTimeWarping from "./external/dynamic-time-warping";
+importScripts("./external/lodash.js");
 
 onmessage = function (e) {
   var param = e.data[0];
