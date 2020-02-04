@@ -311,7 +311,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             };
             this.groupingMode = this.enumList.groupingMode.SINGLE;
             this.groupSizeChart = this.enumList.groupSizeChart.HORIZONTAL_BAR;
-            this.groupingThreshold = 50;
+            this.groupingThreshold = 20;
             this.timeHighlightMode = this.enumList.timeHighlightMode.POINT;
             this.initialiseOverviewCanvasCursor();
           }
@@ -715,8 +715,10 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var _this12 = this;
 
             this.$timeout(function () {
-              var metric = e.data[0];
-              tab.overviewModel.metricList[metricIndex] = metric;
+              var result = e.data[0];
+              var metric = tab.overviewModel.metricList[metricIndex];
+              metric.DTPList = result.DTPList;
+              metric.thresholdGroupListMap = result.thresholdGroupListMap;
               ++tab.clusteredMetricCount;
 
               _this12.scope.$apply();
@@ -758,7 +760,6 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           value: function initialiseMultiMetricGroups() {
             var _this14 = this;
 
-            this.currentTab.overviewModel.thresholdGroupListMap = new Map();
             var tab = this.currentTab;
             var worker = new Worker("/public/plugins/buw-heatmap-panel/multi_metric_worker.js");
             var param = this.getWorkerParam();
@@ -772,8 +773,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           key: "handleFinishedMultiMetricClustering",
           value: function handleFinishedMultiMetricClustering(e, tab) {
             tab.isClustering = false;
-            var result = e.data[0];
-            tab.overviewModel = result.overviewModel;
+            tab.overviewModel.thresholdGroupListMap = e.data[0];
           }
         }, {
           key: "initialiseCompressedTimeIndexes",
@@ -2077,7 +2077,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           key: "compressDecompress",
           value: function compressDecompress() {
             this.isCompressed = !this.isCompressed;
-            this.changeGroupingSelection();
+            this.drawOverview();
+            this.clearFocusArea();
+            this.clearTimeIndicator();
           }
         }, {
           key: "selectTimeHighlightMode",
@@ -3749,8 +3751,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             }
 
             instance.isSelected = true;
-            var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
-            this.showPopup(instance, evt, groupIndex, instanceIndex, canvas);
+            var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex); //  this.showPopup(instance, evt, groupIndex, instanceIndex, canvas)
           }
         }, {
           key: "showPopup",

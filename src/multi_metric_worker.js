@@ -5,14 +5,15 @@ onmessage = function (e) {
     var param = e.data[0];
     var tab = param.tab;
     var config = param.config;
+    var thresholdGroupListMap = new Map();
 
     for (var groupingThreshold = 0; groupingThreshold <= config.groupingThresholdCount; ++groupingThreshold) {
         var groupList = populateMultiMetricGroupList(tab, groupingThreshold);
-        tab.overviewModel.thresholdGroupListMap.set(groupingThreshold, groupList);
+        thresholdGroupListMap.set(groupingThreshold, groupList);
     }
 
-    initialiseMultiMetricGroupsColor(tab, config);
-    postMessage([tab]);
+    initialiseMultiMetricGroupsColor(tab, config, thresholdGroupListMap);
+    postMessage([thresholdGroupListMap]);
 }
 
 populateMultiMetricGroupList = function (tab, groupingThreshold) {
@@ -107,8 +108,8 @@ initialiseNewMultiMetricGroup = function (groupNameIndex, currentSingleGroupList
     return group;
 }
 
-initialiseMultiMetricGroupsColor = function (tab, config) {
-    tab.overviewModel.thresholdGroupListMap.forEach((groupList) => {
+initialiseMultiMetricGroupsColor = function (tab, config, thresholdGroupListMap) {
+    thresholdGroupListMap.forEach((groupList) => {
         var luminanceChange = (config.startingGreyColor - config.endingGrayColor) / groupList.length;
 
         groupList.forEach((group, groupIndex) => {

@@ -254,7 +254,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.groupingMode = this.enumList.groupingMode.SINGLE;
         this.groupSizeChart = this.enumList.groupSizeChart.HORIZONTAL_BAR;
-        this.groupingThreshold = 50;
+        this.groupingThreshold = 20;
         this.timeHighlightMode = this.enumList.timeHighlightMode.POINT;
         this.initialiseOverviewCanvasCursor();
     }
@@ -617,9 +617,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     handleFinishedSingleMetricClustering(e, tab, metricIndex) {
         this.$timeout(() => {
-            var metric = e.data[0];
-            tab.overviewModel.metricList[metricIndex] = metric;
-
+            var result = e.data[0];
+            var metric = tab.overviewModel.metricList[metricIndex];
+            metric.DTPList = result.DTPList;
+            metric.thresholdGroupListMap = result.thresholdGroupListMap;
             ++tab.clusteredMetricCount;
             this.scope.$apply();
 
@@ -654,7 +655,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseMultiMetricGroups() {
-        this.currentTab.overviewModel.thresholdGroupListMap = new Map();
         var tab = this.currentTab;
         var worker = new Worker("/public/plugins/buw-heatmap-panel/multi_metric_worker.js");
         var param = this.getWorkerParam();
@@ -667,8 +667,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     handleFinishedMultiMetricClustering(e, tab) {
         tab.isClustering = false;
-        var result = e.data[0];
-        tab.overviewModel = result.overviewModel;
+        tab.overviewModel.thresholdGroupListMap = e.data[0];
     }
 
     initialiseCompressedTimeIndexes() {
@@ -1845,7 +1844,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     compressDecompress() {
         this.isCompressed = !this.isCompressed;
-        this.changeGroupingSelection();
+        this.drawOverview();
+        this.clearFocusArea();
+        this.clearTimeIndicator();
     }
 
     selectTimeHighlightMode() {
@@ -3393,7 +3394,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         instance.isSelected = true;
         var canvas = this.getGroupedFocusCanvas(groupIndex, instanceIndex);
-        this.showPopup(instance, evt, groupIndex, instanceIndex, canvas)
+        //  this.showPopup(instance, evt, groupIndex, instanceIndex, canvas)
     }
 
     showPopup(instance, evt, canvas) {

@@ -10,7 +10,7 @@ onmessage = function (e) {
     var colorList = param.colorList;
     var config = param.config;
     initialiseDTPList(tab, metric, metricIndex);
-    setMaxDTPAndSortDTPList(metric);
+    sortDTPListAndSetMaxDTP(metric);
     initialiseSingleMetricGroups(tab, metric, metricIndex, metricName, config, colorList);
     postMessage([metric]);
 }
@@ -43,16 +43,16 @@ initialiseDTPList = function (tab, metric, metricIndex) {
     });
 }
 
-setMaxDTPAndSortDTPList = function (metric) {
+sortDTPListAndSetMaxDTP = function (metric) {
+    metric.DTPList.sort(function (first, second) {
+        return first.distance - second.distance;
+    });
+
     if (metric.DTPList.length > 0) {
         metric.maxDTP = metric.DTPList[metric.DTPList.length - 1].distance;
     } else {
         metric.maxDTP = 0;
     }
-
-    metric.DTPList.sort(function (first, second) {
-        return first.distance - second.distance;
-    });
 }
 
 DTPDistanceFunction = function (firstPoint, secondPoint) {
@@ -104,6 +104,11 @@ populateSingleMetricGroupList = function (tab, groupList, metric, metricIndex, g
 
 populateSingMetricGroupListFromDTPList = function (tab, groupList, metric, metricIndex, groupingThreshold) {
     var threshold = metric.maxDTP * groupingThreshold / 100;
+
+    if (groupingThreshold == 100) {
+        console.log(metric.maxDTP + " - " + threshold);
+    }
+
     var DTPIndex = 0;
     var DTP;
 
@@ -114,7 +119,6 @@ populateSingMetricGroupListFromDTPList = function (tab, groupList, metric, metri
         var firstGroup = this.searchExistingSingleMetricGroup(groupList, firstInstance);
         var secondGroup = this.searchExistingSingleMetricGroup(groupList, secondInstance);
         this.processSingleMetricGroups(tab, groupList, metricIndex, firstInstance, secondInstance, firstGroup, secondGroup);
-
         ++DTPIndex;
     } while (DTP.distance <= threshold && DTPIndex < metric.DTPList.length);
 }
