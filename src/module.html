@@ -184,7 +184,7 @@
 
                     <div id="focusGraphContainer" style="height: 300px; overflow: auto">
                         <!-- Grouped -->
-                        <div ng-show="ctrl.isGrouped" ng-mousemove="ctrl.drawFocusGraph(false)">
+                        <div ng-show="ctrl.isGrouped">
                             <!-- Selected groups -->
                             <div ng-repeat="group in ctrl.currentTab.focusModel.groupList" style="margin-bottom: 10px;">
                                 <div ng-repeat="instance in group.instanceList"

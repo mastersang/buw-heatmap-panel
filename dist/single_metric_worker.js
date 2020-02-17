@@ -98,11 +98,6 @@ populateSingleMetricGroupList = function (tab, groupList, metric, metricIndex, g
 
 populateSingMetricGroupListFromDTPList = function (tab, groupList, metric, metricIndex, groupingThreshold) {
   var threshold = metric.maxDTP * groupingThreshold / 100;
-
-  if (groupingThreshold == 100) {
-    console.log(metric.maxDTP + " - " + threshold);
-  }
-
   var DTPIndex = 0;
   var DTP;
 

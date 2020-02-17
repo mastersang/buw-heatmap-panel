@@ -625,9 +625,54 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             this.scope.$apply();
 
             if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
-                this.initialiseSingleMetricInstanceGroupList(tab);
                 this.initialiseMultiMetricGroups();
             }
+        });
+    }
+
+    initialiseMultiMetricGroups() {
+        var tab = this.currentTab;
+        var worker = new Worker("/public/plugins/buw-heatmap-panel/multi_metric_worker.js");
+        var param = this.getWorkerParam();
+        worker.postMessage([param]);
+
+        worker.onmessage = (e) => {
+            this.handleFinishedMultiMetricClustering(e, tab);
+        }
+    }
+
+    handleFinishedMultiMetricClustering(e, tab) {
+        tab.isClustering = false;
+        tab.overviewModel.thresholdGroupListMap = e.data[0];
+        this.referenceGroupInstanceToDataInstance(tab);
+        this.initialiseSingleMetricInstanceGroupList(tab);
+    }
+
+    referenceGroupInstanceToDataInstance(tab) {
+        tab.overviewModel.thresholdGroupListMap.forEach((groupList) => {
+            this.referenceGroupInstanceToDataInstanceByGroupList(tab, groupList);
+        });
+
+        tab.overviewModel.metricList.forEach((metric) => {
+            metric.thresholdGroupListMap.forEach((groupList) => {
+                this.referenceGroupInstanceToDataInstanceByGroupList(tab, groupList);
+            });
+        });
+    }
+
+    referenceGroupInstanceToDataInstanceByGroupList(tab, groupList) {
+        groupList.forEach((group) => {
+            var newInstanceList = [];
+
+            group.instanceList.forEach((groupInstance) => {
+                var dataInstance = _.find(tab.overviewModel.data, (search) => {
+                    return groupInstance.instance == search.instance;
+                });
+
+                newInstanceList.push(dataInstance);
+            });
+
+            group.instanceList = newInstanceList;
         });
     }
 
@@ -652,22 +697,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 }
             });
         });
-    }
-
-    initialiseMultiMetricGroups() {
-        var tab = this.currentTab;
-        var worker = new Worker("/public/plugins/buw-heatmap-panel/multi_metric_worker.js");
-        var param = this.getWorkerParam();
-        worker.postMessage([param]);
-
-        worker.onmessage = (e) => {
-            this.handleFinishedMultiMetricClustering(e, tab);
-        }
-    }
-
-    handleFinishedMultiMetricClustering(e, tab) {
-        tab.isClustering = false;
-        tab.overviewModel.thresholdGroupListMap = e.data[0];
     }
 
     initialiseCompressedTimeIndexes() {
@@ -809,11 +838,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                         nextScaledLength = originalLength * scale;
                     }
 
-                    if (Math.abs(maxOriginalLength - originalLength) > Math.abs(nextScaledLength - maxOriginalLength)) {
-                        this.currentTab.overviewModel.pointWidth *= (scale - 1);
-                    } else {
-                        this.currentTab.overviewModel.pointWidth *= scale;
-                    }
+                    this.currentTab.overviewModel.pointWidth *= scale;
                 }
             }
         }
@@ -1853,18 +1878,24 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.clearTimeIndicator();
 
         if (this.currentTab.overviewModel.thresholdGroupListMap) {
-            this.currentTab.overviewModel.thresholdGroupListMap.forEach((group) => {
-                group.timeRangeIndexList = [];
+            this.currentTab.overviewModel.thresholdGroupListMap.forEach((groupList) => {
+                this.clearGroupIndexRangeIndexList(groupList);
             });
         }
 
         if (this.currentTab.overviewModel.metricList) {
             this.currentTab.overviewModel.metricList.forEach((metric) => {
-                metric.thresholdGroupListMap.forEach((group) => {
-                    group.timeRangeIndexList = [];
+                metric.thresholdGroupListMap.forEach((groupList) => {
+                    this.clearGroupIndexRangeIndexList(groupList);
                 });
             });
         }
+    }
+
+    clearGroupIndexRangeIndexList(groupList) {
+        groupList.forEach((group) => {
+            group.timeRangeIndexList = [];
+        });
     }
 
     clearTimeIndicator() {
@@ -2644,7 +2675,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             if (this.focusGroupWithInterval) {
                 this.focusGroupWithInterval.focusMarkerX = 0;
                 this.focusGroupWithInterval = null;
-                this.drawGroupFocusMarkers();
+                this.drawAllGroupFocusMarkers();
             }
         }
     }
@@ -2660,7 +2691,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.handleFocusMarkerMovingForwardCase();
             }
 
-            this.drawGroupFocusMarkers();
+            this.drawAllGroupFocusMarkers();
         }, this.config.intervalTimer);
     }
 
@@ -3084,11 +3115,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                     this.focusGraphMarkerHeight = this.config.focusGraph.markerSize;
                     this.scope.$apply();
-
-                    this.$timeout(() => {
-                        this.drawGroupFocusMarkers();
-                        this.drawGroupedFocusGraph();
-                    });
+                    this.drawAllGroupFocusMarkers();
+                    this.drawGroupedFocusGraph();
                 });
             } else {
                 this.drawUngroupedFocusGraph();
@@ -3096,7 +3124,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
     }
 
-    drawGroupFocusMarkers() {
+    drawAllGroupFocusMarkers() {
         this.currentTab.focusModel.groupList.forEach((group, groupIndex) => {
             group.instanceList.forEach((instance, instanceIndex) => {
                 if (instanceIndex == 0 || group.showDetails) {
