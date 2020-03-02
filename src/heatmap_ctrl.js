@@ -105,7 +105,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             metricMinHeight: 5,
             marginBetweenMetrics: 10,
             maxWidth: 1000,
-            markerSize: 20,
+            markerSize: 16,
             marginBetweenMarkers: 5
         }
     }
@@ -626,13 +626,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         this.$timeout(() => {
             var result = e.data[0];
             var metric = tab.overviewModel.metricList[metricIndex];
-            metric.DTPList = result.DTPList;
-            metric.thresholdGroupListMap = result.thresholdGroupListMap;
-            ++tab.clusteredMetricCount;
-            this.scope.$apply();
 
-            if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
-                this.initialiseMultiMetricGroups();
+            if (result.isCompleted) {
+                var resultMetric = result.data;
+                metric.DTPList = resultMetric.DTPList;
+                metric.thresholdGroupListMap = resultMetric.thresholdGroupListMap;
+                ++tab.clusteredMetricCount;
+                metric.clusteringMessage = "Completed";
+                this.scope.$apply();
+
+                if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
+                    this.initialiseMultiMetricGroups();
+                }
+            } else {
+                metric.clusteringMessage = result.message;
             }
         });
     }
@@ -1500,7 +1507,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
     drawSelectedGroupsMarkers() {
         this.$timeout(() => {
-            this.focusAreaContext.font = this.config.overview.groupedPointHeight + "px calculator";
+            this.focusAreaContext.font = "bold " + this.config.overview.groupedPointHeight + "px Arial";
             this.clearFocusArea();
             this.currentTab.overviewModel.groupMarkerList = [];
 
@@ -2580,32 +2587,30 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     drawSelectedTimeLabel() {
-        for (var metricIndex = 0; metricIndex < this.currentTab.overviewModel.metricList.length; ++metricIndex) {
-            var overviewMetric = this.currentTab.overviewModel.metricList[metricIndex];
+        var overviewMetric = this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.selectedMetricIndex];
 
-            // some groups are empty -> need to iterate through group list until find one that isn't
-            var groupList = this.getCurrentSingleMetricGroupList(overviewMetric)
+        // some groups are empty -> need to iterate through group list until find one that isn't
+        var groupList = this.getCurrentSingleMetricGroupList(overviewMetric)
 
-            for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
-                var instanceMetric = groupList[groupIndex].instanceList[0].metricList[metricIndex];
+        for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+            var instanceMetric = groupList[groupIndex].instanceList[0].metricList[this.currentTab.overviewModel.selectedMetricIndex];
 
-                if (this.isCompressed) {
-                    for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
-                        var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
+            if (this.isCompressed) {
+                for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+                    var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
 
-                        if (point) {
-                            if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
-                                return;
-                            }
-                        }
-                    }
-                } else {
-                    for (var pointIndex = 0; pointIndex < instanceMetric.data.length; ++pointIndex) {
-                        var point = instanceMetric.data[pointIndex];
-
+                    if (point) {
                         if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
                             return;
                         }
+                    }
+                }
+            } else {
+                for (var pointIndex = 0; pointIndex < instanceMetric.data.length; ++pointIndex) {
+                    var point = instanceMetric.data[pointIndex];
+
+                    if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
+                        return;
                     }
                 }
             }
@@ -3226,10 +3231,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         if (this.isGrouped) {
             this.$timeout(() => {
                 if (this.groupingMode == this.enumList.groupingMode.SINGLE) {
-                    this.focusGraphMarkerWidth = (this.config.focusGraph.markerSize / 2 + this.config.focusGraph.marginBetweenMarkers) *
+                    this.focusGraphMarkerWidth = (this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers) *
                         this.currentTab.overviewModel.metricList.length;
                 } else {
-                    this.focusGraphMarkerWidth = this.config.focusGraph.markerSize / 2 + this.config.focusGraph.marginBetweenMarkers;
+                    this.focusGraphMarkerWidth = this.config.focusGraph.markerSize + this.config.focusGraph.marginBetweenMarkers;
                 }
 
                 this.focusGraphMarkerHeight = this.config.focusGraph.markerSize;
@@ -3277,7 +3282,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             x += this.focusGroupWithInterval.focusMarkerX;
         }
 
-        context.font = this.config.focusGraph.markerSize + "px calculator";
+        context.font = "bold " + this.config.focusGraph.markerSize + "px Arial";
         context.fillStyle = group.color;
         // context.fillRect(x, 0, this.config.focusGraph.markerSize, this.config.focusGraph.markerSize);
         context.fillText(this.getGroupNumber(group), x, 0 + this.config.focusGraph.markerSize);

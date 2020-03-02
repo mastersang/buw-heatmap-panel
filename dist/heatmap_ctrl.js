@@ -164,7 +164,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               metricMinHeight: 5,
               marginBetweenMetrics: 10,
               maxWidth: 1000,
-              markerSize: 20,
+              markerSize: 16,
               marginBetweenMarkers: 5
             };
           }
@@ -724,14 +724,20 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             this.$timeout(function () {
               var result = e.data[0];
               var metric = tab.overviewModel.metricList[metricIndex];
-              metric.DTPList = result.DTPList;
-              metric.thresholdGroupListMap = result.thresholdGroupListMap;
-              ++tab.clusteredMetricCount;
 
-              _this12.scope.$apply();
+              if (result.isCompleted) {
+                var resultMetric = result.data;
+                metric.DTPList = resultMetric.DTPList;
+                metric.thresholdGroupListMap = resultMetric.thresholdGroupListMap;
+                ++tab.clusteredMetricCount;
 
-              if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
-                _this12.initialiseMultiMetricGroups();
+                _this12.scope.$apply();
+
+                if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
+                  _this12.initialiseMultiMetricGroups();
+                }
+              } else {
+                metric.clusteringMessage = result.message;
               }
             });
           }
@@ -1688,7 +1694,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var _this34 = this;
 
             this.$timeout(function () {
-              _this34.focusAreaContext.font = _this34.config.overview.groupedPointHeight + "px calculator";
+              _this34.focusAreaContext.font = "bold " + _this34.config.overview.groupedPointHeight + "px Arial";
 
               _this34.clearFocusArea();
 
@@ -2878,31 +2884,29 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
         }, {
           key: "drawSelectedTimeLabel",
           value: function drawSelectedTimeLabel() {
-            for (var metricIndex = 0; metricIndex < this.currentTab.overviewModel.metricList.length; ++metricIndex) {
-              var overviewMetric = this.currentTab.overviewModel.metricList[metricIndex]; // some groups are empty -> need to iterate through group list until find one that isn't
+            var overviewMetric = this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.selectedMetricIndex]; // some groups are empty -> need to iterate through group list until find one that isn't
 
-              var groupList = this.getCurrentSingleMetricGroupList(overviewMetric);
+            var groupList = this.getCurrentSingleMetricGroupList(overviewMetric);
 
-              for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
-                var instanceMetric = groupList[groupIndex].instanceList[0].metricList[metricIndex];
+            for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
+              var instanceMetric = groupList[groupIndex].instanceList[0].metricList[this.currentTab.overviewModel.selectedMetricIndex];
 
-                if (this.isCompressed) {
-                  for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
-                    var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
+              if (this.isCompressed) {
+                for (var compressedTimeIndex = 0; compressedTimeIndex < overviewMetric.compressedTimeIndexList.length; ++compressedTimeIndex) {
+                  var point = instanceMetric.data[overviewMetric.compressedTimeIndexList[compressedTimeIndex]];
 
-                    if (point) {
-                      if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
-                        return;
-                      }
-                    }
-                  }
-                } else {
-                  for (var pointIndex = 0; pointIndex < instanceMetric.data.length; ++pointIndex) {
-                    var point = instanceMetric.data[pointIndex];
-
+                  if (point) {
                     if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
                       return;
                     }
+                  }
+                }
+              } else {
+                for (var pointIndex = 0; pointIndex < instanceMetric.data.length; ++pointIndex) {
+                  var point = instanceMetric.data[pointIndex];
+
+                  if (this.checkDataPointIsSelectedAndDrawTimeLabel(point, overviewMetric)) {
+                    return;
                   }
                 }
               }
@@ -3560,9 +3564,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             if (this.isGrouped) {
               this.$timeout(function () {
                 if (_this69.groupingMode == _this69.enumList.groupingMode.SINGLE) {
-                  _this69.focusGraphMarkerWidth = (_this69.config.focusGraph.markerSize / 2 + _this69.config.focusGraph.marginBetweenMarkers) * _this69.currentTab.overviewModel.metricList.length;
+                  _this69.focusGraphMarkerWidth = (_this69.config.focusGraph.markerSize + _this69.config.focusGraph.marginBetweenMarkers) * _this69.currentTab.overviewModel.metricList.length;
                 } else {
-                  _this69.focusGraphMarkerWidth = _this69.config.focusGraph.markerSize / 2 + _this69.config.focusGraph.marginBetweenMarkers;
+                  _this69.focusGraphMarkerWidth = _this69.config.focusGraph.markerSize + _this69.config.focusGraph.marginBetweenMarkers;
                 }
 
                 _this69.focusGraphMarkerHeight = _this69.config.focusGraph.markerSize;
@@ -3620,7 +3624,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               x += this.focusGroupWithInterval.focusMarkerX;
             }
 
-            context.font = this.config.focusGraph.markerSize + "px calculator";
+            context.font = "bold " + this.config.focusGraph.markerSize + "px Arial";
             context.fillStyle = group.color; // context.fillRect(x, 0, this.config.focusGraph.markerSize, this.config.focusGraph.markerSize);
 
             context.fillText(this.getGroupNumber(group), x, 0 + this.config.focusGraph.markerSize);

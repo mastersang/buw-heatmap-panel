@@ -12,7 +12,10 @@ onmessage = function (e) {
   initialiseDTPList(tab, metric, metricIndex);
   sortDTPListAndSetMaxDTP(metric);
   initialiseSingleMetricGroups(tab, metric, metricIndex, metricName, config, colorList);
-  postMessage([metric]);
+  postMessage([{
+    isCompleted: true,
+    data: metric
+  }]);
 };
 
 initialiseDTPList = function (tab, metric, metricIndex) {

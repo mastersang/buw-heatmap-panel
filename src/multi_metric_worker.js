@@ -9,6 +9,7 @@ onmessage = function (e) {
 
     for (var groupingThreshold = 0; groupingThreshold <= config.groupingThresholdCount; ++groupingThreshold) {
         var groupList = populateMultiMetricGroupList(tab, groupingThreshold);
+        setGroupNames(groupList);
         thresholdGroupListMap.set(groupingThreshold, groupList);
     }
 
@@ -59,7 +60,6 @@ checkAndAddNewSubgroup = function (group, instance, subgroupList, nextMetricGrou
             if (!subgroup) {
                 subgroup = initialiseNewMultiMetricGroup(groupNameIndex, group.singleGroupList, nextMetricGroup);
                 subgroupList.push(subgroup);
-                ++groupNameIndex.value;
             }
 
             subgroup.instanceList.push(instance);
@@ -95,7 +95,6 @@ getExistingSubgroup = function (subgroupList, nextMetricGroup) {
 initialiseNewMultiMetricGroup = function (groupNameIndex, currentSingleGroupList, singleMetricGroup) {
     var group = {};
     group.instanceList = [];
-    group.name = "Group " + groupNameIndex.value;
     group.markerX = 0;
 
     if (currentSingleGroupList) {
@@ -117,4 +116,10 @@ initialiseMultiMetricGroupsColor = function (tab, config, thresholdGroupListMap)
             group.color = "rgba(" + greyValue + ", " + greyValue + ", " + greyValue + ", 1)";
         });
     })
+}
+
+setGroupNames = function (groupList) {
+    groupList.forEach((group, groupIndex) => {
+        group.name = "Group " + (groupIndex + 1);
+    });
 }
