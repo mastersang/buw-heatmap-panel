@@ -1661,6 +1661,14 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               }
             });
             this.currentTab.focusModel.groupList = newGroupList;
+            this.setFocusedGroupIndice();
+          }
+        }, {
+          key: "setFocusedGroupIndice",
+          value: function setFocusedGroupIndice() {
+            this.currentTab.focusModel.groupList.forEach(function (group, groupIndex) {
+              group.overviewGroup.focusGroupIndex = groupIndex + 1;
+            });
           }
         }, {
           key: "setShowMergeGroupsButton",
@@ -1744,17 +1752,11 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
                 marker.endY = marker.startY + _this36.config.overview.groupedPointHeight;
                 _this36.focusAreaContext.fillStyle = group.color; //this.focusAreaContext.fillRect(marker.startX, marker.startY, this.config.overview.groupedPointHeight, this.config.overview.groupedPointHeight);
 
-                _this36.focusAreaContext.fillText(_this36.getGroupNumber(group), marker.startX, marker.startY + _this36.config.overview.groupedPointHeight);
+                _this36.focusAreaContext.fillText(group.focusGroupIndex, marker.startX, marker.startY + _this36.config.overview.groupedPointHeight);
 
                 _this36.currentTab.overviewModel.groupMarkerList.push(marker);
               });
             }
-          }
-        }, {
-          key: "getGroupNumber",
-          value: function getGroupNumber(group) {
-            var split = group.name.split(" ");
-            return split[split.length - 1];
           }
         }, {
           key: "drawFocusGraph",
@@ -2275,6 +2277,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               focusGroup.instanceList.push(focusInstance);
             });
             this.currentTab.focusModel.groupList.push(focusGroup);
+            this.setFocusedGroupIndice();
           }
         }, {
           key: "setMainMetricIndexAfterMerging",
@@ -2412,8 +2415,9 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               this.currentTab.overviewModel.focusAreaStartPoint = {};
               this.focusInArea = false;
               var firstMetric = this.currentTab.overviewModel.metricList[0];
-              this.currentTab.overviewModel.focusAreaStartPoint.x = Math.max(firstMetric.startX, this.currentTab.overviewModel.mousePositionXOffset - firstMetric.startX);
+              this.currentTab.overviewModel.focusAreaStartPoint.x = this.currentTab.overviewModel.mousePositionXOffset - firstMetric.startX;
               this.currentTab.overviewModel.focusAreaStartPoint.y = this.currentTab.overviewModel.mousePosition.y;
+              this.currentTab.overviewModel.focusAreaMetricIndex = this.currentTab.overviewModel.selectedMetricIndex;
               this.isDrawingFocusArea = true;
             }
           }
@@ -3145,10 +3149,10 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             if (this.currentTab.focusAreaModel.startY > this.currentTab.overviewModel.mousePosition.y) {
               this.currentTab.focusAreaModel.startY = this.currentTab.overviewModel.mousePosition.y;
               this.currentTab.focusAreaModel.endY = this.currentTab.overviewModel.focusAreaStartPoint.y;
-            }
+            } //this.currentTab.focusAreaModel.startX = Math.max(this.currentTab.focusAreaModel.startX, firstMetric.startX);
+            // this.currentTab.focusAreaModel.endX = Math.min(this.currentTab.focusAreaModel.endX, firstMetric.endX);
 
-            this.currentTab.focusAreaModel.startX = Math.max(this.currentTab.focusAreaModel.startX, firstMetric.startX);
-            this.currentTab.focusAreaModel.endX = Math.min(this.currentTab.focusAreaModel.endX, firstMetric.endX);
+
             this.currentTab.focusAreaModel.startY = Math.max(this.currentTab.focusAreaModel.startY, this.currentTab.overviewModel.overviewStartY);
             this.currentTab.focusAreaModel.endY = Math.min(this.currentTab.focusAreaModel.endY, this.currentTab.overviewModel.overviewEndY);
           }
@@ -3188,7 +3192,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               this.currentTab.overviewModel.isSelectingTimeRange = false;
             } else {
               if (this.isDrawingFocusArea) {
-                this.drawFocusGraph(false);
+                this.drawFocusGraph(true);
                 this.isDrawingFocusArea = false;
               }
 
@@ -3589,7 +3593,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
                 _this70.drawGroupedFocusGraph();
               });
-            } else if (this.currentTab.overviewModel.selectedMetricIndex > -1) {
+            } else {
               this.drawUngroupedFocusGraph();
             }
           }
@@ -3639,7 +3643,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             context.font = "bold " + this.config.focusGraph.markerSize + "px Arial";
             context.fillStyle = group.color; // context.fillRect(x, 0, this.config.focusGraph.markerSize, this.config.focusGraph.markerSize);
 
-            context.fillText(this.getGroupNumber(group), x, 0 + this.config.focusGraph.markerSize);
+            context.fillText(group.focusGroupIndex, x, 0 + this.config.focusGraph.markerSize);
           }
         }, {
           key: "drawGroupedFocusGraph",
@@ -3739,8 +3743,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
               context.clearRect(0, 0, canvas.width, canvas.height);
               var valueIndexList = Array.from(Array(_this75.getMaxMetricLength()).keys());
-              var metricList = [instance.metricList[_this75.currentTab.overviewModel.selectedMetricIndex]];
-              var metricIndexList = [_this75.currentTab.overviewModel.selectedMetricIndex];
+              var metricList = [instance.metricList[_this75.currentTab.overviewModel.focusAreaMetricIndex]];
+              var metricIndexList = [_this75.currentTab.overviewModel.focusAreaMetricIndex];
 
               if (instance.showAllMetrics) {
                 metricList = instance.metricList;
