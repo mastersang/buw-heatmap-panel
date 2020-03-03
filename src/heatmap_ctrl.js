@@ -2140,7 +2140,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.currentTab.overviewModel.timeRangeStartOffset = this.currentTab.overviewModel.mousePositionXOffset;
                 this.currentTab.overviewModel.timeRangeGroup = this.currentTab.overviewModel.hoveredGroup;
             }
-        } else {
+        } else if (this.currentTab.overviewModel.selectedMetricIndex > -1) {
             this.currentTab.overviewModel.focusAreaStartPoint = {};
             this.focusInArea = false;
             var firstMetric = this.currentTab.overviewModel.metricList[0];
@@ -2343,6 +2343,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                     this.drawFocusArea();
                 } else if (!this.focusAreaIsFixed) {
                     this.clearFocusArea();
+                    this.currentTab.overviewModel.focusAreaMetricIndex = this.currentTab.overviewModel.selectedMetricIndex;
                     this.drawFocus();
                 }
             }
@@ -2806,13 +2807,23 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     initialiseFocusAreaPoints() {
+        var focusAreaMetric = this.currentTab.overviewModel.metricList[this.currentTab.overviewModel.focusAreaMetricIndex];
         var firstMetric = this.currentTab.overviewModel.metricList[0];
         this.currentTab.focusAreaModel.startX = this.currentTab.overviewModel.focusAreaStartPoint.x;
-        this.currentTab.focusAreaModel.endX = this.currentTab.overviewModel.mousePositionXOffset - firstMetric.startX;
+        var currentMousePositionX = this.currentTab.overviewModel.mousePositionXOffset - firstMetric.startX;
 
-        if (this.currentTab.focusAreaModel.startX > this.currentTab.overviewModel.mousePositionXOffset) {
-            this.currentTab.focusAreaModel.startX = this.currentTab.overviewModel.mousePositionXOffset;
-            this.currentTab.focusAreaModel.endX = this.currentTab.overviewModel.focusAreaStartPoint.x;
+        if (this.currentTab.overviewModel.mousePosition.x < focusAreaMetric.startX) {
+            this.currentTab.focusAreaModel.endX = 0;
+        } else if (this.currentTab.overviewModel.mousePosition.x > focusAreaMetric.endX) {
+            this.currentTab.focusAreaModel.endX = focusAreaMetric.endX - firstMetric.startX;
+        } else {
+            this.currentTab.focusAreaModel.endX = currentMousePositionX;
+        }
+
+        if (this.currentTab.focusAreaModel.startX > this.currentTab.focusAreaModel.endX) {
+            var temp = this.currentTab.focusAreaModel.startX;
+            this.currentTab.focusAreaModel.startX = this.currentTab.focusAreaModel.endX;
+            this.currentTab.focusAreaModel.endX = temp;
         }
 
         this.currentTab.focusAreaModel.startY = this.currentTab.overviewModel.focusAreaStartPoint.y;
@@ -2824,7 +2835,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         }
 
         //this.currentTab.focusAreaModel.startX = Math.max(this.currentTab.focusAreaModel.startX, firstMetric.startX);
-        // this.currentTab.focusAreaModel.endX = Math.min(this.currentTab.focusAreaModel.endX, firstMetric.endX);
+        this.currentTab.focusAreaModel.endX = Math.min(this.currentTab.focusAreaModel.endX, focusAreaMetric.endX);
         this.currentTab.focusAreaModel.startY = Math.max(this.currentTab.focusAreaModel.startY, this.currentTab.overviewModel.overviewStartY);
         this.currentTab.focusAreaModel.endY = Math.min(this.currentTab.focusAreaModel.endY, this.currentTab.overviewModel.overviewEndY);
     }
@@ -3240,7 +3251,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 this.drawAllGroupFocusMarkers();
                 this.drawGroupedFocusGraph();
             });
-        } else {
+        } else if (this.currentTab.overviewModel.focusAreaMetricIndex > -1) {
             this.drawUngroupedFocusGraph();
         }
     }
@@ -3436,7 +3447,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
                 if (instance.instance == focusModelInstance.instance) {
                     focusModelInstance.isSelected = true;
-                    this.focusGraphContainer.scrollTop = this.currentTab.focusModel.focusRowHeight * i;
+                    this.focusGraphContainer.scrollTop = this.currentTab.focusModel.focusRowHeight * (i + 1);
                 } else {
                     focusModelInstance.isSelected = false;
                 }
