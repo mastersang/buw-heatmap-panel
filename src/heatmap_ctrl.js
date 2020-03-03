@@ -345,7 +345,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         return moment(date * 1000).format(this.config.dateFormat);
     }
 
-    getDataFromAPI(query, index) {
+    getDataFromAPI(query, metricIndex) {
         var xmlHttp = new XMLHttpRequest();
 
         xmlHttp.onreadystatechange = () => {
@@ -354,9 +354,10 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
                 ++this.loadCount;
 
                 if (xmlHttp.status == 200) {
-                    var metric = {}
+                    var metric = {};
+                    metric.name = this.panel.metricList[metricIndex].name;
                     metric.data = JSON.parse(xmlHttp.responseText).data.result;
-                    this.currentTab.overviewModel.metricList[index] = metric;
+                    this.currentTab.overviewModel.metricList[metricIndex] = metric;
                 }
             }
         }
@@ -606,11 +607,9 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     getSingleMetricWorkerParam(metric, metricIndex) {
         var param = this.getWorkerParam();
         var panelMetric = this.panel.metricList[metricIndex];
-        var metricName = panelMetric.name;
         var colorList = panelMetric.colorList;
         param.metric = metric;
         param.metricIndex = metricIndex;
-        param.metricName = metricName;
         param.colorList = colorList;
         return param;
     }
@@ -623,17 +622,16 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     handleFinishedSingleMetricClustering(e, tab, metricIndex) {
-        this.$timeout(() => {
-            var result = e.data[0];
-            var metric = tab.overviewModel.metricList[metricIndex];
+        var result = e.data[0];
+        var metric = tab.overviewModel.metricList[metricIndex];
 
+        this.$timeout(() => {
             if (result.isCompleted) {
                 var resultMetric = result.data;
                 metric.DTPList = resultMetric.DTPList;
                 metric.thresholdGroupListMap = resultMetric.thresholdGroupListMap;
                 ++tab.clusteredMetricCount;
                 metric.clusteringMessage = "Completed";
-                this.scope.$apply();
 
                 if (tab.clusteredMetricCount == tab.overviewModel.metricList.length) {
                     this.initialiseMultiMetricGroups();
@@ -641,6 +639,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             } else {
                 metric.clusteringMessage = result.message;
             }
+
+            this.scope.$apply();
         });
     }
 
@@ -656,10 +656,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
     }
 
     handleFinishedMultiMetricClustering(e, tab) {
-        tab.isClustering = false;
-        tab.overviewModel.thresholdGroupListMap = e.data[0];
-        this.referenceGroupInstanceToDataInstance(tab);
-        this.initialiseSingleMetricInstanceGroupList(tab);
+        var result = e.data[0];
+
+        this.$timeout(() => {
+            if (result.isCompleted) {
+                tab.isClustering = false;
+                tab.overviewModel.thresholdGroupListMap = result.data;
+                this.referenceGroupInstanceToDataInstance(tab);
+                this.initialiseSingleMetricInstanceGroupList(tab);
+            } else {
+                tab.overviewModel.clusteringMessage = result.message;
+            }
+
+            this.scope.$apply();
+        });
     }
 
     referenceGroupInstanceToDataInstance(tab) {

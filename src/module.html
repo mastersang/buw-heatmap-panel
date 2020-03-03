@@ -143,16 +143,19 @@
 
         <div style="margin-top: 20px">
             <!-- Overview graph & focus area -->
-            <div ng-show="ctrl.isGrouped && ctrl.currentTab.isClustering">
+            <div ng-if="ctrl.isGrouped && ctrl.currentTab.isClustering">
                 Clustering
 
                 <span ng-show="ctrl.currentTab.clusteredMetricCount < ctrl.currentTab.overviewModel.metricList.length">
                     single-metric
-                    {{ctrl.currentTab.clusteredMetricCount }}/{{ctrl.currentTab.overviewModel.metricList.length}}
+
+                    <div ng-repeat="metric in ctrl.currentTab.overviewModel.metricList">
+                        {{metric.name}}: {{metric.clusteringMessage}}
+                    </div>
                 </span>
 
                 <span ng-hide="ctrl.currentTab.clusteredMetricCount < ctrl.currentTab.overviewModel.metricList.length">
-                    multi-metric
+                    multi-metric: {{ctrl.currentTab.overviewModel.clusteringMessage}}
                 </span>
             </div>
 

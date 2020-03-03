@@ -6,12 +6,11 @@ onmessage = function (e) {
   var tab = param.tab;
   var metric = param.metric;
   var metricIndex = param.metricIndex;
-  var metricName = param.metricName;
   var colorList = param.colorList;
   var config = param.config;
   initialiseDTPList(tab, metric, metricIndex);
   sortDTPListAndSetMaxDTP(metric);
-  initialiseSingleMetricGroups(tab, metric, metricIndex, metricName, config, colorList);
+  initialiseSingleMetricGroups(tab, metric, metricIndex, config, colorList);
   postMessage([{
     isCompleted: true,
     data: metric
@@ -22,6 +21,9 @@ initialiseDTPList = function (tab, metric, metricIndex) {
   metric.DTPList = [];
   var data = tab.overviewModel.data;
   data.forEach((instance, instanceIndex) => {
+    postMessage([{
+      message: "Calculating distances " + (instanceIndex + 1) + "/" + data.length
+    }]);
     var instanceMetric = instance.metricList[metricIndex];
 
     if (instanceMetric.data.length > 0) {
@@ -59,15 +61,18 @@ DTPDistanceFunction = function (firstPoint, secondPoint) {
   return Math.abs(firstPoint.value - secondPoint.value);
 };
 
-initialiseSingleMetricGroups = function (tab, metric, metricIndex, metricName, config, colorList) {
-  this.initialiseSingleMetricGroupsByMetric(tab, config, metric, metricIndex, metricName);
+initialiseSingleMetricGroups = function (tab, metric, metricIndex, config, colorList) {
+  this.initialiseSingleMetricGroupsByMetric(tab, config, metric, metricIndex);
   this.initialiseSingleMetricGroupsColor(metric, config, colorList);
 };
 
-initialiseSingleMetricGroupsByMetric = function (tab, config, metric, metricIndex, metricName) {
+initialiseSingleMetricGroupsByMetric = function (tab, config, metric, metricIndex) {
   metric.thresholdGroupListMap = new Map();
 
   for (var groupingThreshold = 0; groupingThreshold <= config.groupingThresholdCount; ++groupingThreshold) {
+    postMessage([{
+      message: "Grouping " + (groupingThreshold + 1) + "/" + (config.groupingThresholdCount + 1)
+    }]);
     var groupList = [];
     this.populateSingleMetricGroupList(tab, groupList, metric, metricIndex, groupingThreshold);
     groupList.sort((first, second) => {
@@ -76,7 +81,7 @@ initialiseSingleMetricGroupsByMetric = function (tab, config, metric, metricInde
 
     for (var groupIndex = 0; groupIndex < groupList.length; ++groupIndex) {
       var group = groupList[groupIndex];
-      group.name = metricName + " group " + (groupIndex + 1);
+      group.name = metric.name + " group " + (groupIndex + 1);
     }
 
     metric.thresholdGroupListMap.set(groupingThreshold, groupList);

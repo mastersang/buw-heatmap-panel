@@ -7,13 +7,19 @@ onmessage = function (e) {
   var thresholdGroupListMap = new Map();
 
   for (var groupingThreshold = 0; groupingThreshold <= config.groupingThresholdCount; ++groupingThreshold) {
+    postMessage([{
+      message: "Grouping " + (groupingThreshold + 1) + "/" + (config.groupingThresholdCount + 1)
+    }]);
     var groupList = populateMultiMetricGroupList(tab, groupingThreshold);
     setGroupNames(groupList);
     thresholdGroupListMap.set(groupingThreshold, groupList);
   }
 
   initialiseMultiMetricGroupsColor(tab, config, thresholdGroupListMap);
-  postMessage([thresholdGroupListMap]);
+  postMessage([{
+    isCompleted: true,
+    data: thresholdGroupListMap
+  }]);
 };
 
 populateMultiMetricGroupList = function (tab, groupingThreshold) {
