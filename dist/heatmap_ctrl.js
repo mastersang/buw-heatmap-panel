@@ -1644,7 +1644,7 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
               }
             } else {
               group.isSelected = true;
-              this.addGroupToFocus(group);
+              this.addGroupToFocus(group, this.currentTab.overviewModel.selectedMetricIndex);
             }
 
             this.setShowMergeGroupsButton();
@@ -2236,8 +2236,6 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             } else {
               this.mergeFocusGroupListWrapper(this.getCurrentMultiMetricGroupList());
             }
-
-            this.setMainMetricIndexAfterMerging(oldFocusGroupList);
           }
         }, {
           key: "mergeFocusGroupListWrapper",
@@ -2246,19 +2244,18 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
 
             groupList.forEach(function (group) {
               if (group.isSelected) {
-                _this48.addGroupToFocus(group);
+                _this48.addGroupToFocus(group, group.metricIndex);
               }
             });
           }
         }, {
           key: "addGroupToFocus",
-          value: function addGroupToFocus(group) {
+          value: function addGroupToFocus(group, metricIndex) {
             var _this49 = this;
 
             var focusGroup = {};
             focusGroup.instanceList = [];
             focusGroup.overviewGroup = group;
-            focusGroup.mainMetricIndex = this.currentTab.overviewModel.selectedMetricIndex;
             group.instanceList.forEach(function (overviewInstance) {
               var length = 0;
 
@@ -2278,19 +2275,6 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             });
             this.currentTab.focusModel.groupList.push(focusGroup);
             this.setFocusedGroupIndice();
-          }
-        }, {
-          key: "setMainMetricIndexAfterMerging",
-          value: function setMainMetricIndexAfterMerging(oldFocusGroupList) {
-            this.currentTab.focusModel.groupList.forEach(function (group) {
-              var oldGroup = _.find(oldFocusGroupList, function (search) {
-                return search.overviewGroup == group.overviewGroup;
-              });
-
-              if (oldGroup) {
-                group = oldGroup.mainMetricIndex;
-              }
-            });
           }
         }, {
           key: "initialiseGroupsOverlapCount",
@@ -3635,15 +3619,15 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
           }
         }, {
           key: "drawGroupedFocusMarkerWrapper",
-          value: function drawGroupedFocusMarkerWrapper(context, group, x) {
-            if (group == this.focusGroupWithInterval) {
+          value: function drawGroupedFocusMarkerWrapper(context, overviewGroup, x) {
+            if (overviewGroup == this.focusGroupWithInterval) {
               x += this.focusGroupWithInterval.focusMarkerX;
             }
 
             context.font = "bold " + this.config.focusGraph.markerSize + "px Arial";
-            context.fillStyle = group.color; // context.fillRect(x, 0, this.config.focusGraph.markerSize, this.config.focusGraph.markerSize);
+            context.fillStyle = overviewGroup.color; // context.fillRect(x, 0, this.config.focusGraph.markerSize, this.config.focusGraph.markerSize);
 
-            context.fillText(group.focusGroupIndex, x, 0 + this.config.focusGraph.markerSize);
+            context.fillText(overviewGroup.focusGroupIndex, x, 0 + this.config.focusGraph.markerSize);
           }
         }, {
           key: "drawGroupedFocusGraph",
@@ -3668,8 +3652,8 @@ System.register(["app/plugins/sdk", "./heatmap.css!", "moment", "lodash"], funct
             var metricIndexList = Array.from(Array(instance.metricList.length).keys());
 
             if (this.groupingMode == this.enumList.groupingMode.SINGLE && !group.showAllMetrics) {
-              metricList = [instance.metricList[group.mainMetricIndex]];
-              metricIndexList = [group.mainMetricIndex];
+              metricList = [instance.metricList[group.overviewGroup.metricIndex]];
+              metricIndexList = [group.overviewGroup.metricIndex];
             } // selected time range
 
 

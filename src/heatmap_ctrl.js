@@ -1464,7 +1464,7 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
             }
         } else {
             group.isSelected = true;
-            this.addGroupToFocus(group);
+            this.addGroupToFocus(group, this.currentTab.overviewModel.selectedMetricIndex);
         }
 
         this.setShowMergeGroupsButton();
@@ -1999,23 +1999,20 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         } else {
             this.mergeFocusGroupListWrapper(this.getCurrentMultiMetricGroupList());
         }
-
-        this.setMainMetricIndexAfterMerging(oldFocusGroupList);
     }
 
     mergeFocusGroupListWrapper(groupList) {
         groupList.forEach((group) => {
             if (group.isSelected) {
-                this.addGroupToFocus(group);
+                this.addGroupToFocus(group, group.metricIndex);
             }
         });
     }
 
-    addGroupToFocus(group) {
+    addGroupToFocus(group, metricIndex) {
         var focusGroup = {};
         focusGroup.instanceList = [];
         focusGroup.overviewGroup = group;
-        focusGroup.mainMetricIndex = this.currentTab.overviewModel.selectedMetricIndex;
 
         group.instanceList.forEach((overviewInstance) => {
             var length = 0;
@@ -2036,18 +2033,6 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
 
         this.currentTab.focusModel.groupList.push(focusGroup);
         this.setFocusedGroupIndice();
-    }
-
-    setMainMetricIndexAfterMerging(oldFocusGroupList) {
-        this.currentTab.focusModel.groupList.forEach((group) => {
-            var oldGroup = _.find(oldFocusGroupList, (search) => {
-                return search.overviewGroup == group.overviewGroup;
-            });
-
-            if (oldGroup) {
-                group = oldGroup.mainMetricIndex;
-            }
-        });
     }
 
     initialiseGroupsOverlapCount() {
@@ -3319,8 +3304,8 @@ export class HeatmapCtrl extends MetricsPanelCtrl {
         var metricIndexList = Array.from(Array(instance.metricList.length).keys())
 
         if (this.groupingMode == this.enumList.groupingMode.SINGLE && !group.showAllMetrics) {
-            metricList = [instance.metricList[group.mainMetricIndex]];
-            metricIndexList = [group.mainMetricIndex];
+            metricList = [instance.metricList[group.overviewGroup.metricIndex]];
+            metricIndexList = [group.overviewGroup.metricIndex];
         }
 
         // selected time range
