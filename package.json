@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "datejs": "^1.0.0-rc3",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "moment": "^2.24.0"
   }
 }
